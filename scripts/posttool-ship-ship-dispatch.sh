@@ -44,11 +44,11 @@ main() {
   [[ -n "$run_id" && -n "$doc_path" ]] || return 0
   ship_task_lookup "$doc_path" "$workdir" || return 0
 
-  "$DOSSIER" task_update \
-    --id "$SHIP_TASK_ID" \
-    --note "ship run ${run_id} dispatched against ${doc_path}" \
-    --actor "hook:ship-dispatch" \
-    >/dev/null 2>&1 || true
+  dossier_task_update \
+    "$SHIP_TASK_ID" \
+    "ship run ${run_id} dispatched against ${doc_path}" \
+    "hook:ship-dispatch" \
+    2>/dev/null || true
 }
 
 main "$@"

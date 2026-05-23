@@ -57,22 +57,22 @@ main() {
   ship_task_lookup "$doc_path" "$workdir" || return 0
   [[ -n "$SHIP_PROJECT_SLUG" ]] || return 0
 
-  "$DOSSIER" artifact_link \
-    --project "$SHIP_PROJECT_SLUG" \
-    --task "$SHIP_TASK_ID" \
-    --kind run \
-    --ref "$run_id" \
-    --label "ship workflow run — ${status}" \
-    --actor "hook:ship-getrun" \
-    >/dev/null 2>&1 || true
+  dossier_artifact_link \
+    "$SHIP_PROJECT_SLUG" \
+    "$SHIP_TASK_ID" \
+    run \
+    "$run_id" \
+    "ship workflow run — ${status}" \
+    "hook:ship-getrun" \
+    2>/dev/null || true
 
   case "$status" in
     failed | cancelled)
-      "$DOSSIER" task_update \
-        --id "$SHIP_TASK_ID" \
-        --note "ship run ${run_id} reached terminal: ${status}" \
-        --actor "hook:ship-getrun" \
-        >/dev/null 2>&1 || true
+      dossier_task_update \
+        "$SHIP_TASK_ID" \
+        "ship run ${run_id} reached terminal: ${status}" \
+        "hook:ship-getrun" \
+        2>/dev/null || true
       ;;
   esac
 }

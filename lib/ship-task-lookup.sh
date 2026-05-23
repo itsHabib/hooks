@@ -5,16 +5,18 @@ set -euo pipefail
 
 DOSSIER="${DOSSIER:-dossier}"
 
-# Use the corpus-aware wrapper so DOSSIER_CORPUS is honored when set
+# Set DOSSIER_BIN before sourcing the wrapper so the wrapper's own
+# `: "${DOSSIER_BIN:=dossier}"` default no-ops. Conditional set: respect
+# an explicit caller-configured DOSSIER_BIN, otherwise inherit from
+# DOSSIER (which mocks override in tests).
+: "${DOSSIER_BIN:=$DOSSIER}"
+
+# Source the corpus-aware wrapper so DOSSIER_CORPUS is honored when set
 # (otherwise these lookups query whatever corpus dossier discovers from
 # its own CWD, which may not match the operator's configuration).
 _ship_task_lookup_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./dossier-cli.sh
 source "$_ship_task_lookup_dir/dossier-cli.sh"
-# Align the wrapper's binary with this file's DOSSIER override so tests
-# that mock DOSSIER continue to work without configuring DOSSIER_BIN
-# separately.
-DOSSIER_BIN="$DOSSIER"
 
 ship_task_lookup__resolve_doc_file() {
   local doc_path="$1"
