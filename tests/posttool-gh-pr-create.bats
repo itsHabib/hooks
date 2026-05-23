@@ -30,6 +30,16 @@ run_hook() {
   grep -q "https://github.com/pers/hooks/pull/7" "$HOOK_TEST_TMP/dossier.log"
 }
 
+@test "successful create with backtick task linkage also auto-links" {
+  run_hook "success-with-task-backtick.json"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Auto-linked PR #11 to dossier task gh-pr-create-hook"* ]]
+
+  grep -q "artifact_link" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "https://github.com/pers/hooks/pull/11" "$HOOK_TEST_TMP/dossier.log"
+}
+
 @test "successful create without linked task surfaces soft warning" {
   run_hook "success-without-task.json"
 

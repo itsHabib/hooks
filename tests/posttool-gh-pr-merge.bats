@@ -30,6 +30,18 @@ run_hook() {
   grep -q "pr view 42" "$HOOK_TEST_TMP/gh.log"
 }
 
+@test "successful merge with backtick task linkage also auto-closes" {
+  run_hook "success-with-task-backtick.json"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Auto-closed dossier task gh-pr-merge-hook on PR #43 merge"* ]]
+  [[ "$output" == *"Commit linked."* ]]
+
+  grep -q "task_complete" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "artifact_link" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "pr view 43" "$HOOK_TEST_TMP/gh.log"
+}
+
 @test "successful merge without linked task surfaces soft warning" {
   run_hook "success-without-task.json"
 
