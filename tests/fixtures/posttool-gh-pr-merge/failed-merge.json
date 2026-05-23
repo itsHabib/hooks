@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "gh pr merge 55 --squash --admin --delete-branch"
+  },
+  "tool_response": {
+    "stdout": "GraphQL: Repository rule violations found\n",
+    "stderr": "",
+    "exitCode": 1
+  }
+}

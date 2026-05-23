@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log="${HOOK_TEST_TMP:?}/gh.log"
+mkdir -p "$(dirname "$log")"
+printf '%s\n' "$*" >>"$log"
+
+case "$*" in
+  *"pr view 42"*"mergeCommit"*)
+    printf '%s' "abc123def4567890abcdef1234567890abcdef12"
+    ;;
+  *"pr view 42"*"body"*)
+    printf '%s' $'Summary\n\nCloses task/gh-pr-merge-hook\n'
+    ;;
+  *"pr view 99"*"mergeCommit"*)
+    printf '%s' "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+    ;;
+  *"pr view 99"*"body"*)
+    printf '%s' $'Summary without task linkage\n'
+    ;;
+  *)
+    echo "unexpected gh invocation: $*" >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log="${HOOK_TEST_TMP:?}/dossier.log"
+state_dir="${HOOK_TEST_TMP}/dossier-state"
+mkdir -p "$(dirname "$log")" "$state_dir"
+printf '%s\n' "$*" >>"$log"
+
+_state_key() {
+  printf '%s' "$*" | cksum | awk '{print $1}'
+}
+
+_record_call() {
+  local verb="$1"
+  local key
+  key="$(_state_key "$*")"
+  if [[ -f "$state_dir/${verb}.${key}" ]]; then
+    printf '%s NOOP\n' "$verb" >>"$log"
+    return 0
+  fi
+  touch "$state_dir/${verb}.${key}"
+  printf '%s NEW\n' "$verb" >>"$log"
+}
+
+case "$*" in
+  *task_list*)
+    cat <<'EOF'
+[
+  {
+    "id": "tsk_TEST01",
+    "project": "mcp-workstation",
+    "slug": "gh-pr-merge-hook",
+    "title": "gh pr merge hook",
+    "status": "in_progress"
+  }
+]
+EOF
+    ;;
+  *task_complete*)
+    _record_call task_complete "$*"
+    ;;
+  *artifact_link*)
+    _record_call artifact_link "$*"
+    ;;
+  *)
+    echo "unexpected dossier invocation: $*" >&2
+    exit 1
+    ;;
+esac
