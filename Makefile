@@ -10,8 +10,13 @@ deps:
 		git clone --depth 1 $(BATS_CORE_REPO) .deps/bats-core; \
 	fi
 
-test: deps
+test:
 	@if [ -d tests ] && ls tests/*.bats >/dev/null 2>&1; then \
+		if [ ! -x .deps/bats-core/bin/bats ]; then \
+			echo "Installing bats-core into .deps/..."; \
+			mkdir -p .deps; \
+			git clone --depth 1 $(BATS_CORE_REPO) .deps/bats-core; \
+		fi; \
 		find scripts -name "*.sh" -exec chmod +x {} \; ; \
 		$(BATS) tests/; \
 	else \
