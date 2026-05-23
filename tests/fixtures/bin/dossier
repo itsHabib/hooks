@@ -32,6 +32,13 @@ case "$*" in
     "slug": "gh-pr-merge-hook",
     "title": "gh pr merge hook",
     "status": "in_progress"
+  },
+  {
+    "id": "tsk_CREATE01",
+    "project": "mcp-workstation",
+    "slug": "gh-pr-create-hook",
+    "title": "gh pr create hook",
+    "status": "in_progress"
   }
 ]
 EOF
