@@ -5,5 +5,5 @@
     "repo": "hooks",
     "docPath": "docs/integration-layer/missing-task.md"
   },
-  "tool_output": "{\"workflowRunId\":\"wf_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"status\":\"running\"}"
+  "tool_response": "{\"workflowRunId\":\"wf_01ARZ3NDEKTSV4RRFFQ69G5FAV\",\"status\":\"running\"}"
 }
