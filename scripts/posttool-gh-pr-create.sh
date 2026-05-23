@@ -62,7 +62,13 @@ _tool_exit_code() {
 
 _is_gh_pr_create_command() {
   local command="$1"
-  [[ "$command" =~ ^[[:space:]]*gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$) ]]
+  # Match `gh pr create` at a real command boundary — start-of-string OR
+  # after a separator (`;`, `&&`, `||`, `|`, `&`), optionally with a
+  # leading env-var assignment (`GH_TOKEN=… gh pr create …`) or `cd …`.
+  # The hook is idempotent at the dossier layer, so a tolerable false-
+  # positive rate trades off against missing common workflows like
+  # `cd repo && gh pr create …`.
+  [[ "$command" =~ (^|[&|;])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$) ]]
 }
 
 _extract_pr_from_create_output() {
