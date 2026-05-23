@@ -1,3 +1,7 @@
 .claude/
+.deps/
 *.log
+*.swp
+*~
 .DS_Store
+test/tmp/
