@@ -62,7 +62,10 @@ _tool_exit_code() {
 
 _is_gh_pr_merge_command() {
   local command="$1"
-  [[ "$command" =~ (^|[[:space:]|;])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$) ]]
+  # Match only when `gh pr merge` is the actual command being run — at the
+  # start of the command string (allowing leading whitespace), not embedded
+  # in a quoted string, echoed arg, or piped value.
+  [[ "$command" =~ ^[[:space:]]*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$) ]]
 }
 
 _extract_pr_number() {
