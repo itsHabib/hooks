@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "gh pr create --title \"Malformed linkage\" --body \"Closes task/\""
+  },
+  "tool_response": {
+    "stdout": "https://github.com/pers/hooks/pull/9\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}

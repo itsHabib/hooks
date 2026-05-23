@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "gh pr create --title \"Broken create\" --body \"No remote branch\""
+  },
+  "tool_response": {
+    "stdout": "",
+    "stderr": "GraphQL: No commits between main and feature-branch\n",
+    "exitCode": 1
+  }
+}

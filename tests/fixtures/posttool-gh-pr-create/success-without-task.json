@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "gh pr create --title \"Docs only\" --body \"Summary without task linkage\""
+  },
+  "tool_response": {
+    "stdout": "https://github.com/pers/hooks/pull/8\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}

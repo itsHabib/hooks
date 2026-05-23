@@ -18,6 +18,24 @@ case "$*" in
   *"pr view 99"*"body"*)
     printf '%s' $'Summary without task linkage\n'
     ;;
+  *"pr view 7"*"body"*)
+    printf '%s' $'## Summary\n\nCloses task/gh-pr-create-hook\n'
+    ;;
+  *"pr view 7"*"title"*)
+    printf '%s' "Add gh pr create hook"
+    ;;
+  *"pr view 8"*"body"*)
+    printf '%s' $'Summary without task linkage\n'
+    ;;
+  *"pr view 8"*"title"*)
+    printf '%s' "Docs only"
+    ;;
+  *"pr view 9"*"body"*)
+    printf '%s' "Closes task/"
+    ;;
+  *"pr view 9"*"title"*)
+    printf '%s' "Malformed linkage"
+    ;;
   *)
     echo "unexpected gh invocation: $*" >&2
     exit 1
