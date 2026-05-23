@@ -1,0 +1,15 @@
+{
+  "tool_name": "mcp__ship__get_workflow_run",
+  "tool_input": {
+    "workflowRunId": "wf_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  },
+  "tool_output": {
+    "id": "wf_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "repo": "hooks",
+    "docPath": "docs/integration-layer/ship-ship-done-hook.md",
+    "status": "succeeded",
+    "worktree": {
+      "path": "TEST_WORKDIR"
+    }
+  }
+}
