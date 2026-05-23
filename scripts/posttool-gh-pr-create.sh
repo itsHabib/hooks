@@ -164,11 +164,17 @@ _main() {
     _soft_fail "gh not found"
   fi
 
-  if ! pr_body="$(gh pr view "$pr" --json body -q '.body' 2>/dev/null)"; then
+  # Prefer the PR URL when available — `gh pr view <number>` resolves
+  # against the current repo (CWD), but `gh pr create --repo foo/bar`
+  # may target a different repo, so the local number can be wrong.
+  # `gh pr view <url>` is repo-correct.
+  local pr_ref="${pr_url:-$pr}"
+
+  if ! pr_body="$(gh pr view "$pr_ref" --json body -q '.body' 2>/dev/null)"; then
     _soft_fail "could not fetch PR body for PR #$pr"
   fi
 
-  if ! pr_title="$(gh pr view "$pr" --json title -q '.title' 2>/dev/null)"; then
+  if ! pr_title="$(gh pr view "$pr_ref" --json title -q '.title' 2>/dev/null)"; then
     _soft_fail "could not fetch PR title for PR #$pr"
   fi
   if [[ -z "$pr_title" || "$pr_title" == "null" ]]; then

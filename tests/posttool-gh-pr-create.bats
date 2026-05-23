@@ -25,7 +25,8 @@ run_hook() {
   [[ "$output" == *"Auto-linked PR #7 to dossier task gh-pr-create-hook"* ]]
 
   grep -q "artifact_link" "$HOOK_TEST_TMP/dossier.log"
-  grep -q "pr view 7" "$HOOK_TEST_TMP/gh.log"
+  # Hook now resolves PR metadata via the URL form to be cross-repo safe.
+  grep -qE "pr view (7 |.*pull/7)" "$HOOK_TEST_TMP/gh.log"
   grep -q "https://github.com/pers/hooks/pull/7" "$HOOK_TEST_TMP/dossier.log"
 }
 

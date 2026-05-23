@@ -18,22 +18,25 @@ case "$*" in
   *"pr view 99"*"body"*)
     printf '%s' $'Summary without task linkage\n'
     ;;
-  *"pr view 7"*"body"*)
+  # PR 7 (linked task) — accept both "pr view 7" and URL form
+  *"pr view 7"*"body"* | *"pr view "*"pull/7"*"body"*)
     printf '%s' $'## Summary\n\nCloses task/gh-pr-create-hook\n'
     ;;
-  *"pr view 7"*"title"*)
+  *"pr view 7"*"title"* | *"pr view "*"pull/7"*"title"*)
     printf '%s' "Add gh pr create hook"
     ;;
-  *"pr view 8"*"body"*)
+  # PR 8 (no linkage)
+  *"pr view 8"*"body"* | *"pr view "*"pull/8"*"body"*)
     printf '%s' $'Summary without task linkage\n'
     ;;
-  *"pr view 8"*"title"*)
+  *"pr view 8"*"title"* | *"pr view "*"pull/8"*"title"*)
     printf '%s' "Docs only"
     ;;
-  *"pr view 9"*"body"*)
+  # PR 9 (malformed linkage)
+  *"pr view 9"*"body"* | *"pr view "*"pull/9"*"body"*)
     printf '%s' "Closes task/"
     ;;
-  *"pr view 9"*"title"*)
+  *"pr view 9"*"title"* | *"pr view "*"pull/9"*"title"*)
     printf '%s' "Malformed linkage"
     ;;
   *)
