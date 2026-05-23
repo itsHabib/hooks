@@ -8,7 +8,13 @@ The **hooks** layer sits between Claude Code's hook system and your local toolin
 
 Hooks integrate with the workbench MCPs (dossier, ship) and the GitHub CLI to ferry metadata between them on deterministic triggers — closing the gap between "agent did the thing" and "the thing got recorded."
 
-This PR ships the scaffold only. Each hook lands in its own follow-up PR with its own bats tests and `examples/` snippet.
+Hooks land one per PR with bats tests and an `examples/` settings snippet.
+
+### `posttool-gh-pr-merge.sh`
+
+Runs on `PostToolUse` when the agent executes `gh pr merge`. If the merged PR body contains `Closes task/<slug>` (or `Closes task tsk_…`), the hook auto-completes the dossier task and links the merge commit. Include that line in PR bodies opened from worktrees.
+
+**Limitation:** merges done in the GitHub web UI do not fire this hook — use `gh pr merge` from the agent session (or complete/link manually).
 
 ## Wiring hooks
 
