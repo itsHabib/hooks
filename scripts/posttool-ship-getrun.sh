@@ -38,6 +38,10 @@ main() {
   local event output_json run_id status doc_path workdir tool_name
 
   event="$(cat)"
+  # Validate JSON upfront so malformed/truncated payloads exit clean (silent)
+  # rather than cascading parser errors through later reads. Mirrors the same
+  # guard in posttool-ship-ship-dispatch.sh.
+  jq -e '.' <<<"$event" >/dev/null 2>&1 || return 0
   tool_name="$(jq -r '.tool_name // empty' <<<"$event")"
   [[ "$tool_name" == "mcp__ship__get_workflow_run" ]] || return 0
 
