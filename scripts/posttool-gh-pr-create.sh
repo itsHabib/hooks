@@ -26,6 +26,10 @@ _read_event() {
   if [[ -z "$event" ]]; then
     exit 0
   fi
+  # Validate JSON upfront so malformed/truncated payloads exit clean (silent)
+  # rather than cascading `jq: parse error` to stderr through every later
+  # read. Mirrors the same guard in the ship hooks.
+  jq -e '.' <<<"$event" >/dev/null 2>&1 || exit 0
   printf '%s' "$event"
 }
 
