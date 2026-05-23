@@ -69,7 +69,7 @@ dossier_artifact_link() {
 # Prints matching tasks as a JSON array on stdout.
 dossier_task_list() {
   local project="${1:-}"
-  local limit="${2:-100}"
+  local limit="${2:-}"
   local -a cmd=( "$DOSSIER_BIN" )
   local arg
 
@@ -77,7 +77,8 @@ dossier_task_list() {
     cmd+=( "$arg" )
   done < <(_dossier_corpus_args)
 
-  cmd+=( task_list --limit "$limit" )
+  cmd+=( task_list )
+  [[ -n "$limit" ]] && cmd+=( --limit "$limit" )
   [[ -n "$project" ]] && cmd+=( --project "$project" )
 
   "${cmd[@]}"

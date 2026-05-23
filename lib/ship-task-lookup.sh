@@ -5,6 +5,17 @@ set -euo pipefail
 
 DOSSIER="${DOSSIER:-dossier}"
 
+# Use the corpus-aware wrapper so DOSSIER_CORPUS is honored when set
+# (otherwise these lookups query whatever corpus dossier discovers from
+# its own CWD, which may not match the operator's configuration).
+_ship_task_lookup_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./dossier-cli.sh
+source "$_ship_task_lookup_dir/dossier-cli.sh"
+# Align the wrapper's binary with this file's DOSSIER override so tests
+# that mock DOSSIER continue to work without configuring DOSSIER_BIN
+# separately.
+DOSSIER_BIN="$DOSSIER"
+
 ship_task_lookup__resolve_doc_file() {
   local doc_path="$1"
   local workdir="${2:-}"
@@ -37,7 +48,7 @@ ship_task_lookup__project_for_task() {
   local project
 
   project="$(
-    "$DOSSIER" task_list 2>/dev/null \
+    dossier_task_list 2>/dev/null \
       | jq -r --arg id "$task_id" --arg slug "$task_slug" '
           .[]
           | select(.id == $id or ($slug != "" and .slug == $slug))
@@ -91,7 +102,7 @@ ship_task_lookup__from_filename_slug() {
   slug="$(ship_task_lookup__slug_from_doc_path "$doc_path")" || return 1
 
   task_row="$(
-    "$DOSSIER" task_list 2>/dev/null \
+    dossier_task_list 2>/dev/null \
       | jq -r --arg slug "$slug" '.[] | select(.slug == $slug) | "\(.id)\t\(.project)"' \
       | head -n 1
   )" || return 1
