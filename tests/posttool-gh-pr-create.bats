@@ -40,6 +40,16 @@ run_hook() {
   grep -q "https://github.com/pers/hooks/pull/11" "$HOOK_TEST_TMP/dossier.log"
 }
 
+@test "backtick form with task id (tsk_…) routes through id branch" {
+  run_hook "success-with-task-id-backtick.json"
+
+  [ "$status" -eq 0 ]
+  # `tsk_CREATE01` resolves to slug `gh-pr-create-hook` via the dossier mock.
+  [[ "$output" == *"Auto-linked PR #12 to dossier task gh-pr-create-hook"* ]]
+  grep -q "artifact_link" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "tsk_CREATE01" "$HOOK_TEST_TMP/dossier.log"
+}
+
 @test "successful create without linked task surfaces soft warning" {
   run_hook "success-without-task.json"
 

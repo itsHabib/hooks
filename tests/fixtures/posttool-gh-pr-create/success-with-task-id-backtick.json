@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "gh pr create --title \"Add gh pr create hook\" --body \"$(cat <<'EOF'\n## Summary\n\nCloses task `tsk_CREATE01`\n\nEOF\n)\" --draft"
+  },
+  "tool_response": {
+    "stdout": "https://github.com/pers/hooks/pull/12\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}
