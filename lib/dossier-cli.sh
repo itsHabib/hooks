@@ -65,11 +65,12 @@ dossier_artifact_link() {
   "${cmd[@]}" >/dev/null
 }
 
-# Usage: dossier_task_list [project_slug] [limit]
-# Prints matching tasks as a JSON array on stdout.
-dossier_task_list() {
-  local project="${1:-}"
-  local limit="${2:-100}"
+# Usage: dossier_task_update <id> <note> [actor]
+# Appends a structured note to the task's progress log. Returns 0 on success.
+dossier_task_update() {
+  local id="$1"
+  local note="$2"
+  local actor="${3:-}"
   local -a cmd=( "$DOSSIER_BIN" )
   local arg
 
@@ -77,7 +78,26 @@ dossier_task_list() {
     cmd+=( "$arg" )
   done < <(_dossier_corpus_args)
 
-  cmd+=( task_list --limit "$limit" )
+  cmd+=( task_update --id "$id" --note "$note" )
+  [[ -n "$actor" ]] && cmd+=( --actor "$actor" )
+
+  "${cmd[@]}" >/dev/null
+}
+
+# Usage: dossier_task_list [project_slug] [limit]
+# Prints matching tasks as a JSON array on stdout.
+dossier_task_list() {
+  local project="${1:-}"
+  local limit="${2:-}"
+  local -a cmd=( "$DOSSIER_BIN" )
+  local arg
+
+  while IFS= read -r -d '' arg; do
+    cmd+=( "$arg" )
+  done < <(_dossier_corpus_args)
+
+  cmd+=( task_list )
+  [[ -n "$limit" ]] && cmd+=( --limit "$limit" )
   [[ -n "$project" ]] && cmd+=( --project "$project" )
 
   "${cmd[@]}"
