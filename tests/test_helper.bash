@@ -9,6 +9,16 @@ setup() {
   export DOSSIER_LOG="$TEST_TMP/dossier.log"
   : >"$DOSSIER_LOG"
   export DOSSIER="$BATS_TEST_DIRNAME/fixtures/mock-dossier.sh"
+  # Override DOSSIER_BIN explicitly so the lib/dossier-cli.sh wrapper
+  # uses the mock even when the operator's environment has DOSSIER_BIN
+  # set (e.g. via ~/.claude/settings.json env block). Without this, tests
+  # silently shell out to the operator's real dossier binary against the
+  # real corpus — works on a clean machine, breaks on configured ones.
+  export DOSSIER_BIN="$DOSSIER"
+  # Same hygiene: hooks pass --corpus when DOSSIER_CORPUS is set, which
+  # the mock accepts (see mock-dossier.sh) — but unsetting keeps the test
+  # invocation symmetric with how cursor originally wrote it.
+  unset DOSSIER_CORPUS
   export DOSSIER_MOCK_LOG="$DOSSIER_LOG"
 
   export HOOKS_ROOT="$BATS_TEST_DIRNAME/.."

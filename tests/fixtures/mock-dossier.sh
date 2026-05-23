@@ -7,6 +7,13 @@ log="${DOSSIER_MOCK_LOG:?DOSSIER_MOCK_LOG is required}"
 
 printf '%s\n' "$*" >>"$log"
 
+# Strip leading --corpus <path> if present (lib/dossier-cli.sh prepends it
+# when DOSSIER_CORPUS env is set). Hooks/tests may run with or without
+# DOSSIER_CORPUS — accept both shapes.
+if [[ "${1:-}" == "--corpus" ]]; then
+  shift 2
+fi
+
 case "${1:-}" in
   task_update)
     printf '{"id":"%s"}\n' "$(printf '%s\n' "$@" | sed -n 's/.*--id \([^ ]*\).*/\1/p')"

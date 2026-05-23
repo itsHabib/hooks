@@ -3,7 +3,7 @@
   "tool_input": {
     "workflowRunId": "wf_01ARZ3NDEKTSV4RRFFQ69G5FAV"
   },
-  "tool_output": {
+  "tool_response": {
     "id": "wf_01ARZ3NDEKTSV4RRFFQ69G5FAV",
     "repo": "hooks",
     "docPath": "docs/integration-layer/ship-ship-done-hook.md",

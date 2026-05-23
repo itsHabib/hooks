@@ -12,12 +12,16 @@ DOSSIER="${DOSSIER:-dossier}"
 
 hook__tool_output_json() {
   local event="$1"
+  # Claude Code's actual PostToolUse event uses `.tool_response` (see the
+  # gh-pr-merge / gh-pr-create hooks in this repo, which already handle
+  # both). `.tool_output` is the alternate name some specs use; accept
+  # either so the hook is robust regardless of which shape lands. Either
+  # may be a JSON-encoded string OR an object.
   jq -c '
-    if (.tool_output | type) == "string" then
-      (.tool_output | try fromjson catch {})
-    else
-      (.tool_output // {})
-    end
+    (.tool_response // .tool_output // {}) as $raw
+    | if ($raw | type) == "string" then ($raw | try fromjson catch {})
+      else $raw
+      end
   ' <<<"$event"
 }
 
