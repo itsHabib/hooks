@@ -28,10 +28,21 @@ pr_lookup_task() {
   local project_slug=""
   local tasks_json=""
 
+  # Backtick form is held in a variable so the literal `s aren't interpreted
+  # as command substitution inside the `[[ =~ ]]` pattern position.
+  local _backtick_re='Closes[[:space:]]+task[[:space:]]+`([a-zA-Z0-9_-]+)`'
+
   if [[ "$pr_body" =~ Closes[[:space:]]+task[[:space:]]+(tsk_[A-Z0-9]+) ]]; then
     task_id="${BASH_REMATCH[1]}"
   elif [[ "$pr_body" =~ task:[[:space:]]*(tsk_[A-Z0-9]+) ]]; then
     task_id="${BASH_REMATCH[1]}"
+  elif [[ "$pr_body" =~ $_backtick_re ]]; then
+    local cap="${BASH_REMATCH[1]}"
+    if [[ "$cap" =~ ^tsk_[A-Z0-9]+$ ]]; then
+      task_id="$cap"
+    else
+      task_slug="$cap"
+    fi
   elif [[ "$pr_body" =~ Closes[[:space:]]+task/([a-zA-Z0-9_-]+) ]]; then
     task_slug="${BASH_REMATCH[1]}"
   else

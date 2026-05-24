@@ -12,6 +12,13 @@ case "$*" in
   *"pr view 42"*"body"*)
     printf '%s' $'Summary\n\nCloses task/gh-pr-merge-hook\n'
     ;;
+  # PR 43 (linked task via backtick form)
+  *"pr view 43"*"mergeCommit"*)
+    printf '%s' "feedfacefeedfacefeedfacefeedfacefeedface"
+    ;;
+  *"pr view 43"*"body"*)
+    printf '%s' $'Summary\n\nCloses task `gh-pr-merge-hook`\n'
+    ;;
   *"pr view 99"*"mergeCommit"*)
     printf '%s' "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
     ;;
@@ -38,6 +45,20 @@ case "$*" in
     ;;
   *"pr view 9"*"title"* | *"pr view "*"pull/9"*"title"*)
     printf '%s' "Malformed linkage"
+    ;;
+  # PR 11 (linked task via backtick form, slug)
+  *"pr view 11"*"body"* | *"pr view "*"pull/11"*"body"*)
+    printf '%s' $'## Summary\n\nCloses task `gh-pr-create-hook`\n'
+    ;;
+  *"pr view 11"*"title"* | *"pr view "*"pull/11"*"title"*)
+    printf '%s' "Add gh pr create hook"
+    ;;
+  # PR 12 (linked task via backtick form, task id)
+  *"pr view 12"*"body"* | *"pr view "*"pull/12"*"body"*)
+    printf '%s' $'## Summary\n\nCloses task `tsk_CREATE01`\n'
+    ;;
+  *"pr view 12"*"title"* | *"pr view "*"pull/12"*"title"*)
+    printf '%s' "Add gh pr create hook"
     ;;
   *)
     echo "unexpected gh invocation: $*" >&2
