@@ -68,6 +68,15 @@ run_hook() {
   [ ! -f "$HOOK_TEST_TMP/gh.log" ]
 }
 
+@test "malformed envelope JSON exits silent without jq parse-error noise" {
+  err="$BATS_TEST_TMPDIR/err.log"
+  run bash -c "printf '%s' 'not-valid-json{' | '$BATS_TEST_DIRNAME/../scripts/posttool-gh-pr-create.sh' --no-timeout 2>'$err'"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  ! grep -q 'jq:' "$err"
+  ! grep -q 'parse error' "$err"
+}
+
 @test "malformed task reference in PR body surfaces soft warning" {
   run_hook "malformed-body.json"
 
