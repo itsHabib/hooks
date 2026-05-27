@@ -29,9 +29,7 @@ v1-hardening (PRs #9 + #10, in flight): `lib/dossier-cli.sh` wraps
 each dossier verb with stderr capture and structured failure logging
 to `HOOKS_ERROR_LOG`. A `make smoke` target fires all four hooks
 against a real dossier binary + tmp corpus in CI on every PR —
-catches mock-reality drift before merge. The CI workflow needs a
-`DOSSIER_CHECKOUT_TOKEN` secret (fine-grained PAT, read-only on
-`itsHabib/dossier`) for the smoke step.
+catches mock-reality drift before merge.
 
 <!-- BEGIN dev-workbench (managed by /dev-workbench skill — re-run to refresh; hand-edits inside this block will be overwritten) -->
 ## Dev workbench
@@ -221,9 +219,8 @@ make check    # bats + smoke (the CI gate)
 
 CI runs both in `.github/workflows/ci.yml`. The smoke step checks out
 `itsHabib/dossier` as a sibling, builds release, and points
-`DOSSIER_BIN` at it. Because dossier is private, the workflow needs a
-`DOSSIER_CHECKOUT_TOKEN` secret on this repo — a fine-grained PAT
-with read access to `itsHabib/dossier`.
+`DOSSIER_BIN` at it. Both repos are public, so the workflow's default
+`GITHUB_TOKEN` is enough — no extra PAT or repo secret needed.
 
 Requires `bash`, `git`, and `jq`. Tests run under bash (Git Bash or
 WSL on Windows).
