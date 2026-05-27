@@ -1,0 +1,192 @@
+---
+driver_version: 1
+generated_at: 2026-05-27T05:25:00Z
+generated_by: work-driver-prep
+source:
+  project: hooks
+  phase: hooks-prep-public-2026-05-27
+repo: hooks
+repo_url: https://github.com/itsHabib/hooks
+branch_prefix: prep-public/
+default_runtime: local
+
+batches:
+  - id: 1
+    label: ready now (all 6 streams parallel — zero file overlap, no dep edges)
+    depends_on: []
+    status: pending
+    streams:
+      - task_id: tsk_01KSKX615G980SST6GZZ9WKMWC
+        task_slug: readme-no-inline-settings-snippet
+        spec_path: docs/features/hooks-prep-public-2026-05-27/readme-polish.md
+        branch_name: prep-public/readme-polish
+        runtime: local
+        touches: [README.md]
+        # Bundled spec — one PR closes four dossier tasks. The primary above is
+        # the task that the gh-pr-merge hook will auto-complete via its body's
+        # `Closes task `<primary-slug>`` line. The three below need manual
+        # task_complete after merge.
+        also_closes:
+          - { id: tsk_01KSKX6FQS9MYAJRYYKR1M6HTZ, slug: readme-no-prerequisites-section }
+          - { id: tsk_01KSKX83DNCJC2ZMF8CDBMKX2Y, slug: readme-no-license-badge }
+          - { id: tsk_01KSKX88ZFZY7SMT7T8FNG966C, slug: readme-no-ci-badge }
+        status: pending
+
+      - task_id: tsk_01KSKX6P7424GNHG1K3652FS42
+        task_slug: gitignore-missing-secret-patterns
+        spec_path: docs/features/hooks-prep-public-2026-05-27/gitignore-secret-patterns.md
+        branch_name: prep-public/gitignore-secrets
+        runtime: local
+        touches: [.gitignore]
+        status: pending
+
+      - task_id: tsk_01KSKX788ZJD24C2Y21F9VX8R2
+        task_slug: examples-missing-for-ship-hooks
+        spec_path: docs/features/hooks-prep-public-2026-05-27/examples-ship-hooks-snippets.md
+        branch_name: prep-public/ship-hook-snippets
+        runtime: local
+        touches:
+          - examples/posttool-ship-ship-dispatch.json.snippet
+          - examples/posttool-ship-getrun.json.snippet
+        status: pending
+
+      - task_id: tsk_01KSKX8HRWYSXESNCVBFA87AQZ
+        task_slug: no-contributing-md
+        spec_path: docs/features/hooks-prep-public-2026-05-27/contributing-md.md
+        branch_name: prep-public/contributing
+        runtime: local
+        touches: [CONTRIBUTING.md]
+        status: pending
+
+      - task_id: tsk_01KSKX8WJV61HYR60YJDGBSNYS
+        task_slug: no-security-md
+        spec_path: docs/features/hooks-prep-public-2026-05-27/security-md.md
+        branch_name: prep-public/security
+        runtime: local
+        touches: [SECURITY.md]
+        status: pending
+
+      - task_id: tsk_01KSKX92FD8PXTGT2VVVEE20PS
+        task_slug: no-issue-template
+        spec_path: docs/features/hooks-prep-public-2026-05-27/issue-templates.md
+        branch_name: prep-public/issue-templates
+        runtime: local
+        touches:
+          - .github/ISSUE_TEMPLATE/bug_report.yml
+          - .github/ISSUE_TEMPLATE/feature_request.yml
+        status: pending
+
+conflict_notes:
+  - kind: bundled_tasks
+    spec: docs/features/hooks-prep-public-2026-05-27/readme-polish.md
+    primary_task: readme-no-inline-settings-snippet
+    bundled_with:
+      - readme-no-prerequisites-section
+      - readme-no-license-badge
+      - readme-no-ci-badge
+    rationale: |
+      Four prep-public findings all touch README.md with small additive edits.
+      Default convention is one task = one spec = one PR, which would serialize
+      four tiny PRs each rebasing on the previous. Bundling cuts the batch from
+      9 streams across 4 sequential rounds down to 6 streams in one parallel
+      round. Cost: three of the four dossier tasks need manual task_complete +
+      artifact_link after merge (the gh-pr-merge hook only auto-closes the
+      primary task in the body's first `Closes task` line).
+  - kind: no_dep_signals_found
+    between: [readme-polish, gitignore-secrets, ship-hook-snippets, contributing, security, issue-templates]
+    note: |
+      Task bodies were scanned for `depends on` / `requires` / `after` / task
+      slug references. None found between these six. All independent.
+
+skipped_during_resolution:
+  - reason: |
+      `no-git-tags-v0-1-0` (id: tsk_01KSKX5Q07MANQV030PX9HAV94) is operator-only —
+      `git tag v0.1.0 && gh release create v0.1.0` runs after the prep PRs land.
+      No agent stream needed.
+    workaround: |
+      Operator runs the tag command manually after this manifest's batch 1 lands
+      AND PRs #9 + #10 (v1-hardening) merge. Then mark the task done in dossier.
+
+  - reason: |
+      `v1-hardening-not-merged` (id: tsk_01KSKX7S3J9H5HAXAYS5YEDX9D) is a
+      coordination/observation task — it's "done" the moment hooks PRs #9 and
+      #10 are merged. No code change to ship from inside this phase.
+    workaround: |
+      Watch PR #9 + #10 review/CI cycles. When both merge, mark this dossier
+      task done with a note linking the two merge commits.
+---
+
+# Hooks public-launch prep — driver manifest
+
+Generated by `/work-driver-prep project:hooks:phase:hooks-prep-public-2026-05-27` on 2026-05-27.
+Consumed by `/work-driver docs/features/hooks-prep-public-2026-05-27/driver.md`.
+
+## Batches
+
+### Batch 1 — ready now, 6 streams parallel
+
+All six streams land on independent files. No file overlap, no dep edges. Single parallel batch.
+
+| Stream | Spec | Touches | Runtime |
+|---|---|---|---|
+| `readme-no-inline-settings-snippet` (+ 3 bundled) | `readme-polish.md` | `README.md` | local |
+| `gitignore-missing-secret-patterns` | `gitignore-secret-patterns.md` | `.gitignore` | local |
+| `examples-missing-for-ship-hooks` | `examples-ship-hooks-snippets.md` | `examples/*.snippet` (2 new files) | local |
+| `no-contributing-md` | `contributing-md.md` | `CONTRIBUTING.md` (new file) | local |
+| `no-security-md` | `security-md.md` | `SECURITY.md` (new file) | local |
+| `no-issue-template` | `issue-templates.md` | `.github/ISSUE_TEMPLATE/*.yml` (2 new files) | local |
+
+All streams use `runtime: local` — these are simple docs / config changes with no browser, multi-repo, or long-running-impl signals. Operator can override individual streams to `cloud` if they want, but local is the right default for this kind of work.
+
+## Notes
+
+### Bundled stream: `readme-polish.md` closes 4 dossier tasks
+
+The default work-driver-prep convention is one task per spec per PR. For these four README findings, that would produce four sequential PRs each rebasing on the previous (all touch `README.md`). Bundling into one PR saves three sequential rebase rounds. Trade-off: the `posttool-gh-pr-merge` hook only auto-completes the *first* task referenced in the PR body, so the operator (or `/shipped`) needs to manually `task_complete` the other three after merge:
+
+```bash
+dossier task_complete --id tsk_01KSKX6FQS9MYAJRYYKR1M6HTZ --note "merged via PR <N> (readme-polish)" --actor hook:manual-cleanup
+dossier task_complete --id tsk_01KSKX83DNCJC2ZMF8CDBMKX2Y --note "merged via PR <N> (readme-polish)" --actor hook:manual-cleanup
+dossier task_complete --id tsk_01KSKX88ZFZY7SMT7T8FNG966C --note "merged via PR <N> (readme-polish)" --actor hook:manual-cleanup
+```
+
+### Tasks skipped from this manifest
+
+Two dossier tasks under this phase aren't agent-runnable streams:
+
+- `no-git-tags-v0-1-0` — operator action (`git tag v0.1.0 && gh release create v0.1.0`). Done after this batch lands AND PRs #9 + #10 merge.
+- `v1-hardening-not-merged` — coordination/observation. Done when PRs #9 + #10 merge.
+
+Both stay `todo` in dossier as launch-readiness gates; they auto-resolve as the prep work completes.
+
+### Runtime choice
+
+`default_runtime: local` for all streams. None of these tasks have signals that push toward cloud:
+
+- No browser automation.
+- No long-running impl (>10 min).
+- All single-repo (`hooks`).
+- No special env / secrets the cloud VM would lack.
+
+If the operator wants to dogfood cloud on one or more streams (e.g. to test cursor cloud's behavior on a tiny docs PR), override the stream's `runtime: cloud` and add a `repo_url` derivation; the driver picks it up from the manifest.
+
+## Invocation
+
+Single command — driver walks all 6 streams in parallel under batch 1:
+
+```
+/work-driver docs/features/hooks-prep-public-2026-05-27/driver.md
+```
+
+Or batch-by-batch override (only one batch here, so equivalent):
+
+```
+/work-driver docs/features/hooks-prep-public-2026-05-27/driver.md --batch 1
+```
+
+After batch 1 merges:
+
+1. Run the three manual `task_complete` calls listed under "Bundled stream" above.
+2. Close `v1-hardening-not-merged` if PRs #9 + #10 have also landed by then.
+3. Tag v0.1.0: `git tag v0.1.0 && git push origin v0.1.0 && gh release create v0.1.0 --notes-from-tag` (resolves `no-git-tags-v0-1-0`).
+4. Flip the repo public (Settings → General → Change visibility).
