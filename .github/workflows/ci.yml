@@ -21,6 +21,11 @@ jobs:
           repository: itsHabib/dossier
           path: dossier
           fetch-depth: 1
+          # itsHabib/dossier is a private repo; the default GITHUB_TOKEN
+          # only has access to the current repo. DOSSIER_CHECKOUT_TOKEN is
+          # a fine-grained PAT with read access to itsHabib/dossier,
+          # configured in itsHabib/hooks repo secrets.
+          token: ${{ secrets.DOSSIER_CHECKOUT_TOKEN }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -39,8 +44,8 @@ jobs:
       - name: Build dossier (release)
         run: cargo build --release --manifest-path dossier/Cargo.toml
 
-      - name: Install jq
-        run: sudo apt-get install -y jq
+      # jq is pre-installed on ubuntu-latest runner images; no explicit
+      # install step needed.
 
       - name: bats (mock-based unit tests)
         working-directory: hooks

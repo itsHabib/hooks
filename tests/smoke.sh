@@ -40,7 +40,7 @@ if [[ -z "$DOSSIER" ]]; then
   done
 fi
 if [[ -z "$DOSSIER" ]] || { ! [[ -x "$DOSSIER" ]] && ! command -v "$DOSSIER" >/dev/null 2>&1; }; then
-  echo "smoke: dossier binary not found. Set DOSSIER_BIN, build pers/dossier as a sibling, or cargo install it." >&2
+  echo "smoke: dossier binary not found. Set DOSSIER_BIN, build itsHabib/dossier as a sibling, or cargo install it." >&2
   exit 1
 fi
 echo "smoke: using dossier at $DOSSIER"
@@ -146,17 +146,16 @@ updated_at: '$NOW'
 Synthetic task for PR-flow hooks.
 "
 
-# Ship task can stay in todo — the ship-* hooks only append notes /
-# link artifacts, neither requires a specific state.
+# Ship task stays in todo — the ship-* hooks only append notes / link
+# artifacts, neither requires a specific state, and seeding `todo` keeps
+# the test surface minimal (no over-specified frontmatter).
 write_file "$CORPUS/projects/$PROJECT_SLUG/tasks/${SHIP_TASK_ID}-${SHIP_TASK_SLUG}.md" "---
 id: $SHIP_TASK_ID
 project: $PROJECT_ID
 phase: $PHASE_ID
 slug: $SHIP_TASK_SLUG
 title: Ship flow
-status: in_progress
-assignee: $ACTOR
-claimed_at: '$NOW'
+status: todo
 created_at: '$NOW'
 updated_at: '$NOW'
 ---
@@ -168,7 +167,11 @@ Synthetic task for ship-flow hooks.
 # Sanity: dossier task_list returns both tasks with project_slug set.
 # -----------------------------------------------------------------------
 
-TASKS_JSON="$("$DOSSIER" task_list --project "$PROJECT_SLUG")"
+# Pass --corpus explicitly even though DOSSIER_CORPUS is in env — clap
+# would pick it up via `env = "DOSSIER_CORPUS"`, but the explicit flag
+# removes any ambiguity about which corpus we're hitting if a stray
+# env var bleeds in from the runner.
+TASKS_JSON="$("$DOSSIER" --corpus "$CORPUS" task_list --project "$PROJECT_SLUG")"
 if ! jq -e --arg s "$PR_TASK_SLUG" '.[] | select(.slug==$s) | .project_slug == "'"$PROJECT_SLUG"'"' <<<"$TASKS_JSON" >/dev/null; then
   echo "smoke: dossier task_list missing project_slug for pr task — was #40 deployed?" >&2
   echo "$TASKS_JSON" | jq . >&2
@@ -213,7 +216,7 @@ count_artifacts_of_kind() {
 
 task_status() {
   local id="$1"
-  "$DOSSIER" task_list --project "$PROJECT_SLUG" \
+  "$DOSSIER" --corpus "$CORPUS" task_list --project "$PROJECT_SLUG" \
     | jq -r --arg id "$id" '.[] | select(.id == $id) | .status'
 }
 
