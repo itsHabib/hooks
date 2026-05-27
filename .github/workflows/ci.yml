@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    name: bats + live-corpus smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hooks
+        uses: actions/checkout@v4
+        with:
+          path: hooks
+          # make test / make smoke run PR-controlled code later in this
+          # job; without this, actions/checkout persists the workflow
+          # GITHUB_TOKEN in .git/config where untrusted PR code could
+          # read and exfiltrate it. No later step needs auth back into
+          # this repo.
+          persist-credentials: false
+
+      - name: Checkout dossier (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: itsHabib/dossier
+          path: dossier
+          fetch-depth: 1
+          # Defense-in-depth — even though dossier is public and
+          # actions/checkout does an anonymous-equivalent clone here,
+          # explicitly disable credential persistence so a future
+          # private-flip doesn't silently introduce a token-in-dotfile
+          # exfiltration path.
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo + dossier target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            dossier/target
+          key: ${{ runner.os }}-cargo-dossier-${{ hashFiles('dossier/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-dossier-
+
+      - name: Build dossier (release)
+        run: cargo build --release --manifest-path dossier/Cargo.toml
+
+      # jq is pre-installed on ubuntu-latest runner images; no explicit
+      # install step needed.
+
+      - name: bats (mock-based unit tests)
+        working-directory: hooks
+        run: make test
+
+      - name: live-corpus smoke (real dossier)
+        working-directory: hooks
+        env:
+          DOSSIER_BIN: ${{ github.workspace }}/dossier/target/release/dossier
+        run: make smoke
