@@ -20,16 +20,26 @@ Band: **amazing**.
 
 ## Behavior / fix
 
-Add two files under `examples/`, matching the shape of the existing two snippets.
+Add two files under `examples/`, matching the **full settings.json shape** of the existing `posttool-gh-pr-create.json.snippet` / `posttool-gh-pr-merge.json.snippet`. Each snippet must be a self-contained `{ "hooks": { "PostToolUse": [...] } }` document so a user can paste it directly into `~/.claude/settings.json` (or `cp` it as their starter settings file).
 
 **`examples/posttool-ship-ship-dispatch.json.snippet`**:
 
 ```json
 {
-  "matcher": "mcp__ship__ship",
-  "hooks": [
-    { "type": "command", "command": "bash ~/pers/hooks/scripts/posttool-ship-ship-dispatch.sh", "timeout": 5 }
-  ]
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__ship__ship",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/pers/hooks/scripts/posttool-ship-ship-dispatch.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -37,10 +47,20 @@ Add two files under `examples/`, matching the shape of the existing two snippets
 
 ```json
 {
-  "matcher": "mcp__ship__get_workflow_run",
-  "hooks": [
-    { "type": "command", "command": "bash ~/pers/hooks/scripts/posttool-ship-getrun.sh", "timeout": 5 }
-  ]
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__ship__get_workflow_run",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/pers/hooks/scripts/posttool-ship-getrun.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 

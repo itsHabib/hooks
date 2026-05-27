@@ -142,12 +142,18 @@ All streams use `runtime: local` — these are simple docs / config changes with
 
 ### Bundled stream: `readme-polish.md` closes 4 dossier tasks
 
-The default work-driver-prep convention is one task per spec per PR. For these four README findings, that would produce four sequential PRs each rebasing on the previous (all touch `README.md`). Bundling into one PR saves three sequential rebase rounds. Trade-off: the `posttool-gh-pr-merge` hook only auto-completes the *first* task referenced in the PR body, so the operator (or `/shipped`) needs to manually `task_complete` the other three after merge:
+The default work-driver-prep convention is one task per spec per PR. For these four README findings, that would produce four sequential PRs each rebasing on the previous (all touch `README.md`). Bundling into one PR saves three sequential rebase rounds. Trade-off: the `posttool-gh-pr-merge` hook only auto-completes the *first* task referenced in the PR body and only links its commit to that one task — the other three need both `task_complete` AND `artifact_link` after merge so they don't end up "closed without a traceable merge artifact" (which breaks later artifact-driven retros). Run these once the PR merges, substituting `<N>`, `<PROJECT_ID>`, and `<COMMIT_SHA>`:
 
 ```bash
-dossier task_complete --id tsk_01KSKX6FQS9MYAJRYYKR1M6HTZ --note "merged via PR <N> (readme-polish)" --actor hook:manual-cleanup
-dossier task_complete --id tsk_01KSKX83DNCJC2ZMF8CDBMKX2Y --note "merged via PR <N> (readme-polish)" --actor hook:manual-cleanup
-dossier task_complete --id tsk_01KSKX88ZFZY7SMT7T8FNG966C --note "merged via PR <N> (readme-polish)" --actor hook:manual-cleanup
+# Per secondary task: complete + link the same merge commit as a kind:commit artifact.
+for tsk in \
+  tsk_01KSKX6FQS9MYAJRYYKR1M6HTZ \
+  tsk_01KSKX83DNCJC2ZMF8CDBMKX2Y \
+  tsk_01KSKX88ZFZY7SMT7T8FNG966C
+do
+  dossier task_complete --id "$tsk" --note "merged via PR <N> (readme-polish)" --actor hook:manual-cleanup
+  dossier artifact_link --project hooks --task "$tsk" --kind commit --ref "<COMMIT_SHA>" --label "merge commit (readme-polish, bundled)" --actor hook:manual-cleanup
+done
 ```
 
 ### Tasks skipped from this manifest
