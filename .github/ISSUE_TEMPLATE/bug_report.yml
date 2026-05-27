@@ -36,7 +36,7 @@ body:
     id: hooks-version
     attributes:
       label: hooks commit / tag
-      description: Output of `git -C ~/pers/hooks rev-parse --short HEAD` or the tag you cloned.
+      description: Output of `git rev-parse --short HEAD` (run from your hooks clone) or the tag you cloned.
     validations:
       required: true
 

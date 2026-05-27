@@ -37,7 +37,7 @@ body:
     attributes:
       label: Dossier write
       description: |
-        What artifact_link / task_update / task_complete call should the hook make? Reference the dossier verb signatures from PROTOCOL.md.
+        What artifact_link / task_update / task_complete call should the hook make? Reference the dossier verb signatures from CLAUDE.md in this repo, or the dossier repo's README.
 
   - type: textarea
     id: alternatives
