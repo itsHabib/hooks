@@ -26,6 +26,12 @@ jobs:
           # a fine-grained PAT with read access to itsHabib/dossier,
           # configured in itsHabib/hooks repo secrets.
           token: ${{ secrets.DOSSIER_CHECKOUT_TOKEN }}
+          # PR-controlled code (make test / make smoke) runs later in this
+          # workflow; without this, actions/checkout persists the PAT in
+          # the sibling repo's .git/config where untrusted PR code could
+          # exfiltrate it. We only need the PAT for the checkout itself —
+          # no later step pushes back or re-fetches.
+          persist-credentials: false
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
