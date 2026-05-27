@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__ship__get_workflow_run",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/pers/hooks/scripts/posttool-ship-getrun.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
