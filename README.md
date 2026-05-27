@@ -1,5 +1,8 @@
 # hooks
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/itsHabib/hooks/actions/workflows/ci.yml/badge.svg)](https://github.com/itsHabib/hooks/actions/workflows/ci.yml)
+
 LLM-side git hooks for the personal workbench — deterministic harness-level scripts that race the agent to mechanical metadata-ferrying between dossier / ship / gh.
 
 ## What this is
@@ -16,7 +19,40 @@ Runs on `PostToolUse` when the agent executes `gh pr merge`. If the merged PR bo
 
 **Limitation:** merges done in the GitHub web UI do not fire this hook — use `gh pr merge` from the agent session (or complete/link manually).
 
+## Prerequisites
+
+- **dossier** — https://github.com/itsHabib/dossier. Install the binary (`cargo install --git https://github.com/itsHabib/dossier`) and create a corpus dir with `<corpus>/.dossier/` as the marker. Hooks find it via `DOSSIER_BIN` + `DOSSIER_CORPUS` env vars set in your settings.json.
+- **jq** — modern coreutils version (`brew install jq` / `scoop install jq` / `apt install jq`).
+- **gh** — GitHub CLI authenticated (`gh auth status` must succeed) for the `posttool-gh-*` hooks.
+- **bash** — Git Bash on Windows, default shell on macOS / Linux.
+
+Optionally:
+- **ship** MCP if you want the `posttool-ship-*` hooks to fire (those listen on `mcp__ship__ship` / `mcp__ship__get_workflow_run` PostToolUse events).
+
 ## Wiring hooks
+
+Minimal `~/.claude/settings.json` shape for the `gh pr merge` hook:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash ~/pers/hooks/scripts/posttool-gh-pr-merge.sh", "timeout": 5 }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "DOSSIER_BIN": "/path/to/dossier",
+    "DOSSIER_CORPUS": "/path/to/dossier-corpus"
+  }
+}
+```
+
+Per-hook snippets for the other three hooks (gh-pr-create, ship-ship-dispatch, ship-getrun) live in `examples/`. Merge them into the same `hooks` block by combining their `PostToolUse` entries.
 
 Each hook ships its own snippet under `examples/`. Copy the relevant block into `~/.claude/settings.json` under the top-level `hooks` key. Merge with any existing hook entries — do not replace the whole file.
 
