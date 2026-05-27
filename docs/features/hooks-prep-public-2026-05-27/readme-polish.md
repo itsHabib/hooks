@@ -49,9 +49,9 @@ Four edits to `README.md`:
    - **ship** MCP if you want the `posttool-ship-*` hooks to fire (those listen on `mcp__ship__ship` / `mcp__ship__get_workflow_run` PostToolUse events).
    ```
 
-3. **Inline settings.json snippet** (`readme-no-inline-settings-snippet`). In the existing `## Wiring hooks` section, before the paragraph that points at `examples/`, add a copy-pasteable code block:
+3. **Inline settings.json snippet** (`readme-no-inline-settings-snippet`). In the existing `## Wiring hooks` section, before the paragraph that points at `examples/`, add a copy-pasteable code block. Outer fence uses four backticks so the embedded ```json block survives:
 
-   ```markdown
+   ````markdown
    Minimal `~/.claude/settings.json` shape for the `gh pr merge` hook:
 
    ```json
@@ -74,7 +74,7 @@ Four edits to `README.md`:
    ```
 
    Per-hook snippets for the other three hooks (gh-pr-create, ship-ship-dispatch, ship-getrun) live in `examples/`. Merge them into the same `hooks` block by combining their `PostToolUse` entries.
-   ```
+   ````
 
    Note: the dossier URL placeholders assume `itsHabib/dossier` is the public destination. If dossier ends up at a different URL, update the Prerequisites + this snippet together.
 

@@ -20,9 +20,9 @@ Short contributor guide at repo root so external PRs know the conventions of thi
 
 ## Behavior / fix
 
-Create `CONTRIBUTING.md` with this content:
+Create `CONTRIBUTING.md` with this content. Outer fence uses four backticks so the embedded ```bash block survives:
 
-```markdown
+````markdown
 # Contributing
 
 Thanks for your interest. This repo is small + opinionated; the bar for contributions is "fits the conventions in this file."
@@ -58,7 +58,7 @@ Opinionated changes are fine; don't take review comments blindly.
 
 - Bug reports and feature requests → GitHub issues.
 - Larger design questions → open a draft PR with the design doc inline; easier to comment line-by-line than in an issue thread.
-```
+````
 
 ## Acceptance
 
