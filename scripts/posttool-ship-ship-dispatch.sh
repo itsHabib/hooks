@@ -3,6 +3,7 @@
 
 set -uo pipefail
 
+HOOK_NAME="posttool-ship-ship-dispatch"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=../lib/ship-task-lookup.sh
