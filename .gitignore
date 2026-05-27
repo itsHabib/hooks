@@ -6,3 +6,15 @@
 .DS_Store
 test/tmp/
 tests/tmp/
+
+# Secret patterns — universal hygiene
+.env
+.env.*
+# Keep template files tracked — they're documentation, not secrets.
+!.env.example
+!.env.template
+!.env.sample
+*.pem
+*.key
+credentials*
+secrets/
