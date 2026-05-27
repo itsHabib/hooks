@@ -22,16 +22,16 @@ Runs on `PostToolUse` when the agent executes `gh pr merge`. If the merged PR bo
 ## Prerequisites
 
 - **dossier** — https://github.com/itsHabib/dossier. Install the binary (`cargo install --git https://github.com/itsHabib/dossier`) and create a corpus dir with `<corpus>/.dossier/` as the marker. Hooks find it via `DOSSIER_BIN` + `DOSSIER_CORPUS` env vars set in your settings.json.
-- **jq** — modern coreutils version (`brew install jq` / `scoop install jq` / `apt install jq`).
+- **jq** — `jq >= 1.6` recommended (`brew install jq` / `scoop install jq` / `apt install jq`).
 - **gh** — GitHub CLI authenticated (`gh auth status` must succeed) for the `posttool-gh-*` hooks.
-- **bash** — Git Bash on Windows, default shell on macOS / Linux.
+- **bash** — Git Bash on Windows; available on Linux out of the box; macOS ships bash 3.2 by default (`brew install bash` for a current build if needed).
 
 Optionally:
 - **ship** MCP if you want the `posttool-ship-*` hooks to fire (those listen on `mcp__ship__ship` / `mcp__ship__get_workflow_run` PostToolUse events).
 
 ## Wiring hooks
 
-Minimal `~/.claude/settings.json` shape for the `gh pr merge` hook:
+Minimal `~/.claude/settings.json` shape for the `gh pr merge` hook. Replace `~/pers/hooks` in the `command` field with the path to your own clone (the operator's convention is `~/pers/hooks`, but the hook only needs to point at this repo's `scripts/`):
 
 ```json
 {
@@ -63,7 +63,7 @@ After editing settings, restart Claude Code (or reload settings) so hooks take e
 | Rule | Rationale |
 |---|---|
 | **Stdout = context** | Hook output is injected into the model's context. Keep it short and actionable. |
-| **Speed budget ≤ 3s** | Wrap commands with `timeout 3` in settings or inside the script. Slow hooks degrade every session. |
+| **Speed budget ≤ 3s** | Settings.json wraps each hook with `timeout: 5` as a safety margin; hooks should aim well under that. Slow hooks degrade every session. |
 | **Fail silent on edge cases** | Missing git repo, malformed JSON, missing tools → exit 0 with no output. Never block the agent. |
 | **Idempotent verbs** | When a hook ferries metadata to a tool, the tool's verb must tolerate the hook + the prompt both firing (no double-writes). |
 | **Pure bash + git + jq** | No extra runtime dependencies beyond what's already on the operator's machine. |
