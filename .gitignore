@@ -10,6 +10,10 @@ tests/tmp/
 # Secret patterns — universal hygiene
 .env
 .env.*
+# Keep template files tracked — they're documentation, not secrets.
+!.env.example
+!.env.template
+!.env.sample
 *.pem
 *.key
 credentials*
