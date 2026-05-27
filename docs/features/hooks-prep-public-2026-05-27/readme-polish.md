@@ -1,11 +1,10 @@
 **Status**: draft
 **Owner**: @claude-code:michael
 **Date**: 2026-05-27
-**Related**:
-  - dossier task `readme-no-inline-settings-snippet` (id: `tsk_01KSKX615G980SST6GZZ9WKMWC`)
-  - dossier task `readme-no-prerequisites-section` (id: `tsk_01KSKX6FQS9MYAJRYYKR1M6HTZ`)
-  - dossier task `readme-no-license-badge` (id: `tsk_01KSKX83DNCJC2ZMF8CDBMKX2Y`)
-  - dossier task `readme-no-ci-badge` (id: `tsk_01KSKX88ZFZY7SMT7T8FNG966C`)
+**Related**: dossier task `readme-no-inline-settings-snippet` (id: `tsk_01KSKX615G980SST6GZZ9WKMWC`)
+  - also closes `readme-no-prerequisites-section` (id: `tsk_01KSKX6FQS9MYAJRYYKR1M6HTZ`)
+  - also closes `readme-no-license-badge` (id: `tsk_01KSKX83DNCJC2ZMF8CDBMKX2Y`)
+  - also closes `readme-no-ci-badge` (id: `tsk_01KSKX88ZFZY7SMT7T8FNG966C`)
 
 # README polish for public launch — design spec
 
