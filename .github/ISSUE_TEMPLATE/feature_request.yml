@@ -1,0 +1,46 @@
+name: Feature request
+description: A new hook or a change to an existing hook's contract
+labels: [enhancement]
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What workflow does this enable? What metadata gap does it close between dossier / ship / gh?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: hook-type
+    attributes:
+      label: Proposed hook type
+      options:
+        - New hook (new PostToolUse matcher)
+        - Extend existing hook (new artifact kind / lookup form / etc.)
+        - Library helper (lib/ change only)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: matcher
+    attributes:
+      label: Tool / matcher to listen on
+      description: |
+        For new hooks: which Claude Code tool would fire it? (e.g. `Bash` for gh commands, `mcp__ship__ship`, `mcp__dossier__task_create`, etc.) Settings.json `matcher` field shape.
+      placeholder: |
+        Matcher: mcp__ship__cancel_workflow_run
+        Triggers when: agent cancels a still-running ship workflow
+
+  - type: textarea
+    id: dossier-write
+    attributes:
+      label: Dossier write
+      description: |
+        What artifact_link / task_update / task_complete call should the hook make? Reference the dossier verb signatures from CLAUDE.md in this repo, or the dossier repo's README.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Why not solve this with an MCP verb / a different hook / a manual ferry?

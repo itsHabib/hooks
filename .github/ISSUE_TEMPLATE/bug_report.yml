@@ -1,0 +1,60 @@
+name: Bug report
+description: Something a hook does (or doesn't do) that contradicts the README / CLAUDE.md / dossier task body
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you observe? What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Ideally a minimal sequence: settings.json hook block, the tool call that should have triggered the hook, and what you saw (or didn't see) in the dossier corpus / hooks-errors.log.
+      placeholder: |
+        1. settings.json hook block: ...
+        2. Ran `gh pr merge ...` against PR with body `Closes task \`foo\``.
+        3. Expected: kind:commit artifact under projects/<slug>/artifacts.jsonl
+        4. Observed: no new artifact; no entry in ~/.cache/hooks-errors.log either.
+    validations:
+      required: true
+
+  - type: textarea
+    id: hooks-errors-log
+    attributes:
+      label: Lines from ~/.cache/hooks-errors.log
+      description: |
+        If the hook attempted and failed, the wrapper logs a line here. Paste the relevant lines, scrubbing any sensitive content.
+      render: text
+
+  - type: input
+    id: hooks-version
+    attributes:
+      label: hooks commit / tag
+      description: Output of `git rev-parse --short HEAD` (run from your hooks clone) or the tag you cloned.
+    validations:
+      required: true
+
+  - type: input
+    id: dossier-version
+    attributes:
+      label: dossier binary version
+      description: Output of `$DOSSIER_BIN --version`.
+
+  - type: dropdown
+    id: shell
+    attributes:
+      label: Shell
+      options:
+        - bash (Git Bash on Windows)
+        - bash (macOS default / Homebrew)
+        - bash (Linux distro default)
+        - WSL bash
+        - other
+    validations:
+      required: true
