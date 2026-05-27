@@ -10,6 +10,9 @@ setup() {
   export HOOK_TEST_TMP="$BATS_TEST_DIRNAME/tmp"
   rm -rf "$HOOK_TEST_TMP"
   mkdir -p "$HOOK_TEST_TMP"
+  # Scope dossier-wrapper failure logging to the test tmp dir so
+  # `~/.cache/hooks-errors.log` doesn't get polluted by test runs.
+  export HOOKS_ERROR_LOG="$HOOK_TEST_TMP/hooks-errors.log"
 }
 
 run_hook() {

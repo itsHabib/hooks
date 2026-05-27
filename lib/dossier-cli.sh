@@ -16,6 +16,73 @@ _dossier_corpus_args() {
   fi
 }
 
+# Append one tab-separated line per failed dossier call so silent fails
+# leave a trail operators can `tail`. Columns:
+#   ts (RFC3339)  hook_name  verb  exit_code  stderr (truncated, newlines→spaces)
+#
+# Destination: HOOKS_ERROR_LOG. If unset, defaults to
+# `${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/hooks-errors.log`. Note the `-`
+# (not `:-`) — an empty-string HOOKS_ERROR_LOG sets log="" and the
+# `[[ -z "$log" ]]` check below suppresses logging. Used by bats setup so
+# test runs don't write to the operator's real cache. The default is built
+# with `${HOME:-/tmp}` so an unset HOME under `set -u` doesn't abort.
+_dossier_log_failure() {
+  local verb="$1"
+  local rc="$2"
+  local stderr_file="$3"
+  local default_dir="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}"
+  local log="${HOOKS_ERROR_LOG-$default_dir/hooks-errors.log}"
+
+  [[ -z "$log" ]] && return 0
+
+  local hook_name="${HOOK_NAME:-unknown-hook}"
+  local ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local stderr_msg=""
+  if [[ -f "$stderr_file" ]]; then
+    # 200-char cap keeps a runaway stderr from blowing up the log line.
+    # Head FIRST so `tr` reads a bounded stream — closing the pipe early
+    # from the other direction would otherwise SIGPIPE `tr` under pipefail
+    # and abort logging on the very failures we most want to capture.
+    # ANSI-C $'\n\t' is two literal control chars (LF + TAB), portable
+    # across coreutils / busybox / MSYS unlike '\n\t' which some `tr`s
+    # don't interpret.
+    stderr_msg="$(head -c 200 <"$stderr_file" 2>/dev/null | tr $'\n\t' '  ' 2>/dev/null || true)"
+  fi
+
+  mkdir -p "$(dirname "$log")" 2>/dev/null || true
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "$ts" "$hook_name" "$verb" "$rc" "$stderr_msg" \
+    >>"$log" 2>/dev/null || true
+}
+
+# Internal helper: run a dossier command, capture stderr, log failures.
+# Preserves stdout (task_list needs it). Returns the underlying exit
+# code so callers' existing `|| true` patterns keep working.
+#
+# Uses the `if cmd; then ...` pattern rather than toggling `set -e` so
+# the caller's errexit state isn't mutated — `if` suppresses errexit for
+# its own condition automatically.
+_dossier_run() {
+  local verb="$1"
+  shift
+  local stderr_file rc
+  stderr_file="$(mktemp 2>/dev/null \
+    || printf '%s/hooks-dossier-stderr.%d.%d' "${TMPDIR:-/tmp}" "$$" "$RANDOM")"
+
+  if "$@" 2>"$stderr_file"; then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  if [[ $rc -ne 0 ]]; then
+    _dossier_log_failure "$verb" "$rc" "$stderr_file"
+  fi
+  rm -f "$stderr_file" 2>/dev/null || true
+  return $rc
+}
+
 # Usage: dossier_task_complete <id> [note] [actor]
 # Returns 0 on success (including dossier idempotent no-op). Non-zero on failure.
 dossier_task_complete() {
@@ -33,7 +100,7 @@ dossier_task_complete() {
   [[ -n "$note" ]] && cmd+=( --note "$note" )
   [[ -n "$actor" ]] && cmd+=( --actor "$actor" )
 
-  "${cmd[@]}" >/dev/null
+  _dossier_run task_complete "${cmd[@]}" >/dev/null
 }
 
 # Usage: dossier_artifact_link <project> <task> <kind> <ref> [label] [actor]
@@ -62,7 +129,7 @@ dossier_artifact_link() {
   [[ -n "$label" ]] && cmd+=( --label "$label" )
   [[ -n "$actor" ]] && cmd+=( --actor "$actor" )
 
-  "${cmd[@]}" >/dev/null
+  _dossier_run artifact_link "${cmd[@]}" >/dev/null
 }
 
 # Usage: dossier_task_update <id> <note> [actor]
@@ -81,7 +148,7 @@ dossier_task_update() {
   cmd+=( task_update --id "$id" --note "$note" )
   [[ -n "$actor" ]] && cmd+=( --actor "$actor" )
 
-  "${cmd[@]}" >/dev/null
+  _dossier_run task_update "${cmd[@]}" >/dev/null
 }
 
 # Usage: dossier_task_list [project_slug] [limit]
@@ -100,5 +167,5 @@ dossier_task_list() {
   [[ -n "$limit" ]] && cmd+=( --limit "$limit" )
   [[ -n "$project" ]] && cmd+=( --project "$project" )
 
-  "${cmd[@]}"
+  _dossier_run task_list "${cmd[@]}"
 }
