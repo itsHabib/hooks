@@ -14,6 +14,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: hooks
+          # make test / make smoke run PR-controlled code later in this
+          # job; without this, actions/checkout persists the workflow
+          # GITHUB_TOKEN in .git/config where untrusted PR code could
+          # read and exfiltrate it. No later step needs auth back into
+          # this repo.
+          persist-credentials: false
 
       - name: Checkout dossier (sibling)
         uses: actions/checkout@v4
@@ -21,6 +27,12 @@ jobs:
           repository: itsHabib/dossier
           path: dossier
           fetch-depth: 1
+          # Defense-in-depth — even though dossier is public and
+          # actions/checkout does an anonymous-equivalent clone here,
+          # explicitly disable credential persistence so a future
+          # private-flip doesn't silently introduce a token-in-dotfile
+          # exfiltration path.
+          persist-credentials: false
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
