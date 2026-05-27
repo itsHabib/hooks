@@ -28,6 +28,11 @@ run_hook() {
   # Hook now resolves PR metadata via the URL form to be cross-repo safe.
   grep -qE "pr view (7 |.*pull/7)" "$HOOK_TEST_TMP/gh.log"
   grep -q "https://github.com/pers/hooks/pull/7" "$HOOK_TEST_TMP/dossier.log"
+  # Regression lock: artifact_link must be called with the project SLUG,
+  # never an ID. Catches any future drift back to reading `.project` instead
+  # of `.project_slug` from task_list output.
+  ! grep -q -- "--project prj_" "$HOOK_TEST_TMP/dossier.log"
+  grep -q -- "--project mcp-workstation" "$HOOK_TEST_TMP/dossier.log"
 }
 
 @test "successful create with backtick task linkage also auto-links" {

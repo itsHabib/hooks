@@ -22,11 +22,15 @@ case "${1:-}" in
     printf '{"kind":"run","reference":"%s"}\n' "$(printf '%s\n' "$@" | sed -n 's/.*--ref \([^ ]*\).*/\1/p')"
     ;;
   task_list)
+    # Real dossier returns `project` as the project id (prj_…) and
+    # `project_slug` as the slug. Mirror that so the lookup helpers exercise
+    # the correct field.
     cat <<'EOF'
 [
   {
     "id": "tsk_01KS6R3A51BE3CR6YS8DJ4DBDS",
-    "project": "mcp-workstation",
+    "project": "prj_FIXTURE03SHIP3FIXTURE03SH",
+    "project_slug": "mcp-workstation",
     "slug": "ship-ship-done-hook",
     "title": "ship-ship-done-hook"
   }

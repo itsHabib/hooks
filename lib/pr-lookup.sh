@@ -54,7 +54,7 @@ pr_lookup_task() {
       return 1
     fi
     project_slug="$(printf '%s' "$tasks_json" | jq -r --arg id "$task_id" '
-      .[] | select(.id == $id) | .project
+      .[] | select(.id == $id) | .project_slug
     ' | head -n 1)"
     task_slug="$(printf '%s' "$tasks_json" | jq -r --arg id "$task_id" '
       .[] | select(.id == $id) | .slug
@@ -86,7 +86,7 @@ pr_lookup_task() {
     .[] | select(.slug == $slug) | .id
   ' | head -n 1)"
   project_slug="$(printf '%s' "$tasks_json" | jq -r --arg slug "$task_slug" '
-    .[] | select(.slug == $slug) | .project
+    .[] | select(.slug == $slug) | .project_slug
   ' | head -n 1)"
   if [[ -z "$task_id" || "$task_id" == "null" || -z "$project_slug" || "$project_slug" == "null" ]]; then
     return 1
