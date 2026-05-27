@@ -194,5 +194,5 @@ After batch 1 merges:
 
 1. Run the three manual `task_complete` calls listed under "Bundled stream" above.
 2. Close `v1-hardening-not-merged` if PRs #9 + #10 have also landed by then.
-3. Tag v0.1.0: `git tag v0.1.0 && git push origin v0.1.0 && gh release create v0.1.0 --notes-from-tag` (resolves `no-git-tags-v0-1-0`).
-4. Flip the repo public (Settings → General → Change visibility).
+3. Tag v0.1.0: `git tag v0.1.0 && git push origin v0.1.0` (resolves `no-git-tags-v0-1-0`). Tag only — no `gh release create` ceremony for v0.1.0.
+4. Flip both repos public (`itsHabib/dossier` and `itsHabib/hooks` together; Settings → General → Change visibility).
