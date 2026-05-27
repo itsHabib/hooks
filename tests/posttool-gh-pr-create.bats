@@ -36,6 +36,11 @@ run_hook() {
   # of `.project_slug` from task_list output.
   ! grep -q -- "--project prj_" "$HOOK_TEST_TMP/dossier.log"
   grep -q -- "--project mcp-workstation" "$HOOK_TEST_TMP/dossier.log"
+  # Regression lock: pr_lookup_task must not cap task_list with --limit.
+  # The previous hardcoded `--limit 100` silently truncated the corpus once
+  # it grew past 100 tasks. lib/pr-lookup.sh is shared between merge and
+  # create hooks, so this lock lives in both bats files.
+  ! grep -qE 'task_list[[:space:]].*--limit' "$HOOK_TEST_TMP/dossier.log"
 }
 
 @test "successful create with backtick task linkage also auto-links" {

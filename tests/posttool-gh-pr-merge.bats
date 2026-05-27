@@ -39,7 +39,10 @@ run_hook() {
   # Regression lock: pr_lookup_task must not cap task_list with --limit.
   # The previous hardcoded `--limit 100` silently truncated the corpus once
   # it grew past 100 tasks, hiding the very tasks a fresh PR was closing.
-  ! grep -qE '^task_list[[:space:]].*--limit' "$HOOK_TEST_TMP/dossier.log"
+  # The log line starts with `--corpus <path> task_list ...` (corpus-aware
+  # wrapper prepends it), so the assertion matches `task_list` followed
+  # anywhere by `--limit` rather than anchoring at line start.
+  ! grep -qE 'task_list[[:space:]].*--limit' "$HOOK_TEST_TMP/dossier.log"
 }
 
 @test "successful merge with backtick task linkage also auto-closes" {
