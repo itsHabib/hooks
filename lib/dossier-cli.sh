@@ -20,14 +20,18 @@ _dossier_corpus_args() {
 # leave a trail operators can `tail`. Columns:
 #   ts (RFC3339)  hook_name  verb  exit_code  stderr (truncated, newlines→spaces)
 #
-# Destination: HOOKS_ERROR_LOG (defaults to ~/.cache/hooks-errors.log).
-# Set HOOKS_ERROR_LOG to the empty string to disable — used by bats setup
-# so test runs don't write to the operator's real cache.
+# Destination: HOOKS_ERROR_LOG. If unset, defaults to
+# `${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/hooks-errors.log`. Note the `-`
+# (not `:-`) — an empty-string HOOKS_ERROR_LOG sets log="" and the
+# `[[ -z "$log" ]]` check below suppresses logging. Used by bats setup so
+# test runs don't write to the operator's real cache. The default is built
+# with `${HOME:-/tmp}` so an unset HOME under `set -u` doesn't abort.
 _dossier_log_failure() {
   local verb="$1"
   local rc="$2"
   local stderr_file="$3"
-  local log="${HOOKS_ERROR_LOG-$HOME/.cache/hooks-errors.log}"
+  local default_dir="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}"
+  local log="${HOOKS_ERROR_LOG-$default_dir/hooks-errors.log}"
 
   [[ -z "$log" ]] && return 0
 
@@ -37,7 +41,13 @@ _dossier_log_failure() {
   local stderr_msg=""
   if [[ -f "$stderr_file" ]]; then
     # 200-char cap keeps a runaway stderr from blowing up the log line.
-    stderr_msg="$(tr '\n\t' '  ' <"$stderr_file" | head -c 200)"
+    # Head FIRST so `tr` reads a bounded stream — closing the pipe early
+    # from the other direction would otherwise SIGPIPE `tr` under pipefail
+    # and abort logging on the very failures we most want to capture.
+    # ANSI-C $'\n\t' is two literal control chars (LF + TAB), portable
+    # across coreutils / busybox / MSYS unlike '\n\t' which some `tr`s
+    # don't interpret.
+    stderr_msg="$(head -c 200 <"$stderr_file" 2>/dev/null | tr $'\n\t' '  ' 2>/dev/null || true)"
   fi
 
   mkdir -p "$(dirname "$log")" 2>/dev/null || true
@@ -49,6 +59,10 @@ _dossier_log_failure() {
 # Internal helper: run a dossier command, capture stderr, log failures.
 # Preserves stdout (task_list needs it). Returns the underlying exit
 # code so callers' existing `|| true` patterns keep working.
+#
+# Uses the `if cmd; then ...` pattern rather than toggling `set -e` so
+# the caller's errexit state isn't mutated — `if` suppresses errexit for
+# its own condition automatically.
 _dossier_run() {
   local verb="$1"
   shift
@@ -56,10 +70,11 @@ _dossier_run() {
   stderr_file="$(mktemp 2>/dev/null \
     || printf '%s/hooks-dossier-stderr.%d.%d' "${TMPDIR:-/tmp}" "$$" "$RANDOM")"
 
-  set +e
-  "$@" 2>"$stderr_file"
-  rc=$?
-  set -e
+  if "$@" 2>"$stderr_file"; then
+    rc=0
+  else
+    rc=$?
+  fi
 
   if [[ $rc -ne 0 ]]; then
     _dossier_log_failure "$verb" "$rc" "$stderr_file"

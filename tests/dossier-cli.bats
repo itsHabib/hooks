@@ -71,16 +71,28 @@ setup() {
 }
 
 @test "HOOKS_ERROR_LOG= (empty) suppresses logging entirely" {
+  # Unique HOOK_NAME marker — a regression that flips suppression off would
+  # cause this exact string to appear in the operator's real log file,
+  # which we then assert is absent. Without the marker the grep would be
+  # vacuous (looking for a string nothing writes).
+  local marker="suppressed-marker-$$-$RANDOM"
   export DOSSIER_BIN="$BATS_TEST_DIRNAME/fixtures/bin-fail/dossier"
   export HOOKS_ERROR_LOG=""
+  export HOOK_NAME="$marker"
   source "$HOOKS_ROOT/lib/dossier-cli.sh"
 
   run dossier_artifact_link "alpha" "tsk_X" "pr" "ref"
   [ "$status" -ne 0 ]
-  # Default log path is ~/.cache/hooks-errors.log. We can't assert that file
-  # is absent (might pre-exist), but we can assert no new line for this test
-  # run by snapshotting before+after under a unique HOOK_NAME.
-  if [[ -f "$HOME/.cache/hooks-errors.log" ]]; then
-    ! grep -q "test-hook-suppressed-marker" "$HOME/.cache/hooks-errors.log"
-  fi
+  # Default log location depends on env (XDG_CACHE_HOME or HOME). Don't
+  # assert the file is absent (might pre-exist from prior real hook runs);
+  # just assert no line with our unique marker appears in any plausible
+  # default location.
+  for candidate in \
+    "${XDG_CACHE_HOME:-}/hooks-errors.log" \
+    "${HOME:-}/.cache/hooks-errors.log" \
+    "/tmp/.cache/hooks-errors.log"; do
+    if [[ -n "$candidate" && -f "$candidate" ]]; then
+      ! grep -q "$marker" "$candidate"
+    fi
+  done
 }
