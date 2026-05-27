@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    name: bats + live-corpus smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hooks
+        uses: actions/checkout@v4
+        with:
+          path: hooks
+
+      - name: Checkout dossier (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: itsHabib/dossier
+          path: dossier
+          fetch-depth: 1
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo + dossier target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            dossier/target
+          key: ${{ runner.os }}-cargo-dossier-${{ hashFiles('dossier/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-dossier-
+
+      - name: Build dossier (release)
+        run: cargo build --release --manifest-path dossier/Cargo.toml
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: bats (mock-based unit tests)
+        working-directory: hooks
+        run: make test
+
+      - name: live-corpus smoke (real dossier)
+        working-directory: hooks
+        env:
+          DOSSIER_BIN: ${{ github.workspace }}/dossier/target/release/dossier
+        run: make smoke
