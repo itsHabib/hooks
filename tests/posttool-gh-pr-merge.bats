@@ -28,6 +28,11 @@ run_hook() {
   grep -q "task_complete" "$HOOK_TEST_TMP/dossier.log"
   grep -q "artifact_link" "$HOOK_TEST_TMP/dossier.log"
   grep -q "pr view 42" "$HOOK_TEST_TMP/gh.log"
+  # Regression lock: artifact_link must be called with the project SLUG,
+  # never an ID. Catches any future drift back to reading `.project` instead
+  # of `.project_slug` from task_list output.
+  ! grep -q -- "--project prj_" "$HOOK_TEST_TMP/dossier.log"
+  grep -q -- "--project mcp-workstation" "$HOOK_TEST_TMP/dossier.log"
 }
 
 @test "successful merge with backtick task linkage also auto-closes" {

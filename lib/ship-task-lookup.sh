@@ -54,7 +54,7 @@ ship_task_lookup__project_for_task() {
       | jq -r --arg id "$task_id" --arg slug "$task_slug" '
           .[]
           | select(.id == $id or ($slug != "" and .slug == $slug))
-          | .project
+          | .project_slug
         ' \
       | head -n 1
   )" || return 1
@@ -105,7 +105,7 @@ ship_task_lookup__from_filename_slug() {
 
   task_row="$(
     dossier_task_list 2>/dev/null \
-      | jq -r --arg slug "$slug" '.[] | select(.slug == $slug) | "\(.id)\t\(.project)"' \
+      | jq -r --arg slug "$slug" '.[] | select(.slug == $slug) | "\(.id)\t\(.project_slug)"' \
       | head -n 1
   )" || return 1
 

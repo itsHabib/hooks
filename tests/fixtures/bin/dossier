@@ -24,18 +24,24 @@ _record_call() {
 
 case "$*" in
   *task_list*)
+    # Real dossier task_list returns `project` as the project id (prj_…)
+    # and `project_slug` as the slug. Mirror that shape so hook regressions
+    # that revert to reading `.project` are caught by the existing
+    # "--project prj_" guard in the bats suite.
     cat <<'EOF'
 [
   {
     "id": "tsk_TEST01",
-    "project": "mcp-workstation",
+    "project": "prj_FIXTURE01HOOK1FIXTURE01HK",
+    "project_slug": "mcp-workstation",
     "slug": "gh-pr-merge-hook",
     "title": "gh pr merge hook",
     "status": "in_progress"
   },
   {
     "id": "tsk_CREATE01",
-    "project": "mcp-workstation",
+    "project": "prj_FIXTURE02HOOK2FIXTURE02HK",
+    "project_slug": "mcp-workstation",
     "slug": "gh-pr-create-hook",
     "title": "gh pr create hook",
     "status": "in_progress"
