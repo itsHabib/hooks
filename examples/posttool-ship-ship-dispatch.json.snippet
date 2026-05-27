@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__ship__ship",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/pers/hooks/scripts/posttool-ship-ship-dispatch.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
