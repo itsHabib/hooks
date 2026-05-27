@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Mock dossier binary used by dossier-cli.bats: always fails noisily so
+# tests can exercise the _dossier_log_failure path.
+echo "boom from mock dossier: $*" >&2
+exit 3

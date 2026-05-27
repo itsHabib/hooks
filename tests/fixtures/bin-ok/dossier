@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Mock dossier binary used by dossier-cli.bats: succeeds, returns an
+# empty JSON array for task_list, nothing for write verbs.
+case "$*" in
+  *task_list*)
+    printf '[]\n'
+    ;;
+  *)
+    :
+    ;;
+esac
+exit 0

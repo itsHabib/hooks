@@ -25,6 +25,10 @@ setup() {
   export DISPATCH_HOOK="$HOOKS_ROOT/scripts/posttool-ship-ship-dispatch.sh"
   export GETRUN_HOOK="$HOOKS_ROOT/scripts/posttool-ship-getrun.sh"
 
+  # Scope dossier-wrapper failure logging to the test tmp dir so
+  # `~/.cache/hooks-errors.log` doesn't get polluted by test runs.
+  export HOOKS_ERROR_LOG="$TEST_TMP/hooks-errors.log"
+
   chmod +x "$DOSSIER" "$DISPATCH_HOOK" "$GETRUN_HOOK"
 }
 
