@@ -50,7 +50,7 @@ pr_lookup_task() {
   fi
 
   if [[ -n "$task_id" ]]; then
-    if ! tasks_json="$(dossier_task_list "" 100)"; then
+    if ! tasks_json="$(dossier_task_list "" "")"; then
       return 1
     fi
     project_slug="$(printf '%s' "$tasks_json" | jq -r --arg id "$task_id" '
@@ -66,8 +66,13 @@ pr_lookup_task() {
     return 0
   fi
 
+  # Empty limit ⇒ wrapper omits --limit ⇒ dossier returns the full project /
+  # corpus. The previous hardcoded 100 was too low: the corpus grew past 100
+  # tasks in routine portfolio use, the default ordering is `created_at ASC`,
+  # and the task an active PR is closing is almost always one of the most
+  # recently created — i.e. past position 100, silently truncated out.
   if [[ -n "$project_hint" ]]; then
-    if ! tasks_json="$(dossier_task_list "$project_hint" 100)"; then
+    if ! tasks_json="$(dossier_task_list "$project_hint" "")"; then
       return 1
     fi
     task_id="$(printf '%s' "$tasks_json" | jq -r --arg slug "$task_slug" '
@@ -79,7 +84,7 @@ pr_lookup_task() {
     fi
   fi
 
-  if ! tasks_json="$(dossier_task_list "" 100)"; then
+  if ! tasks_json="$(dossier_task_list "" "")"; then
     return 1
   fi
   task_id="$(printf '%s' "$tasks_json" | jq -r --arg slug "$task_slug" '

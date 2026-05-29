@@ -117,7 +117,10 @@ _infer_project_slug() {
   fi
 
   case "$root" in
-    */hooks|*/hooks/*|*/mcp-workstation|*/mcp-workstation/*)
+    */hooks|*/hooks/*)
+      printf '%s' "hooks"
+      ;;
+    */mcp-workstation|*/mcp-workstation/*)
       printf '%s' "mcp-workstation"
       ;;
     */dossier|*/dossier/*)
