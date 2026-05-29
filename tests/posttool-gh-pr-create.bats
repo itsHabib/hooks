@@ -2,6 +2,9 @@
 
 load test_helper
 
+# `run --separate-stderr` (used by run_hook_split) needs bats >= 1.5.0.
+bats_require_minimum_version 1.5.0
+
 setup() {
   export PATH="$BATS_TEST_DIRNAME/fixtures/bin:$PATH"
   export DOSSIER_BIN=dossier
@@ -18,6 +21,16 @@ setup() {
 run_hook() {
   local fixture="$1"
   run "$BATS_TEST_DIRNAME/../scripts/posttool-gh-pr-create.sh" --no-timeout \
+    <"$BATS_TEST_DIRNAME/fixtures/posttool-gh-pr-create/$fixture"
+}
+
+# Like run_hook but splits the streams: $output = stdout, $stderr = stderr.
+# Needed to prove a message lands on STDOUT specifically — plain `run`
+# merges both into $output, so a stdout-only assertion would pass even if
+# the text were on stderr.
+run_hook_split() {
+  local fixture="$1"
+  run --separate-stderr "$BATS_TEST_DIRNAME/../scripts/posttool-gh-pr-create.sh" --no-timeout \
     <"$BATS_TEST_DIRNAME/fixtures/posttool-gh-pr-create/$fixture"
 }
 
@@ -64,14 +77,16 @@ run_hook() {
 }
 
 @test "successful create without linked task surfaces a stdout reminder" {
-  run_hook "success-without-task.json"
+  run_hook_split "success-without-task.json"
 
   [ "$status" -eq 0 ]
   # The reminder must land on STDOUT (the channel injected into the model's
-  # context) — stderr is swallowed by the PostToolUse dispatcher, which is
-  # why the old _warn path never reached the operator.
+  # context); the old _warn path went to stderr, which the PostToolUse
+  # dispatcher swallows. With --separate-stderr, $output is stdout-only and
+  # $stderr is stderr-only — so these assertions actually prove the routing.
   [[ "$output" == *"Reminder:"* ]]
   [[ "$output" == *"no dossier task linkage"* ]]
+  [[ "$stderr" != *"Reminder:"* ]]
   [[ "$output" != *"Auto-linked"* ]]
   [ ! -f "$HOOK_TEST_TMP/dossier.log" ]
 }
@@ -95,11 +110,13 @@ run_hook() {
 }
 
 @test "malformed task reference in PR body surfaces a stdout reminder" {
-  run_hook "malformed-body.json"
+  run_hook_split "malformed-body.json"
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Reminder:"* ]]
   [[ "$output" == *"no dossier task linkage"* ]]
+  [[ "$stderr" != *"Reminder:"* ]]
+  [[ "$output" != *"Auto-linked"* ]]
   [ ! -f "$HOOK_TEST_TMP/dossier.log" ]
 }
 
