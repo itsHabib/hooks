@@ -205,7 +205,9 @@ _main() {
 
   project_hint="$(_infer_project_slug || true)"
   if ! lookup="$(pr_lookup_task "$pr_body" "$project_hint")"; then
-    _warn "no task linkage in PR body"
+    # Reminder, not an error → stdout (the model-context channel), not stderr
+    # (swallowed by the dispatcher, which is why the old _warn never showed).
+    printf 'Reminder: PR #%s has no dossier task linkage. If it maps to a task, add a line like: Closes task `<slug>` (or: Closes task tsk_...) so the gh-pr-merge hook auto-closes it on merge. If not, ignore.\n' "$pr"
     exit 0
   fi
 
