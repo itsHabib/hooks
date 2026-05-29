@@ -63,11 +63,15 @@ run_hook() {
   grep -q "tsk_CREATE01" "$HOOK_TEST_TMP/dossier.log"
 }
 
-@test "successful create without linked task surfaces soft warning" {
+@test "successful create without linked task surfaces a stdout reminder" {
   run_hook "success-without-task.json"
 
   [ "$status" -eq 0 ]
-  [[ "$output$stderr" == *"no task linkage in PR body"* ]]
+  # The reminder must land on STDOUT (the channel injected into the model's
+  # context) — stderr is swallowed by the PostToolUse dispatcher, which is
+  # why the old _warn path never reached the operator.
+  [[ "$output" == *"Reminder:"* ]]
+  [[ "$output" == *"no dossier task linkage"* ]]
   [[ "$output" != *"Auto-linked"* ]]
   [ ! -f "$HOOK_TEST_TMP/dossier.log" ]
 }
@@ -90,11 +94,12 @@ run_hook() {
   ! grep -q 'parse error' "$err"
 }
 
-@test "malformed task reference in PR body surfaces soft warning" {
+@test "malformed task reference in PR body surfaces a stdout reminder" {
   run_hook "malformed-body.json"
 
   [ "$status" -eq 0 ]
-  [[ "$output$stderr" == *"no task linkage in PR body"* ]]
+  [[ "$output" == *"Reminder:"* ]]
+  [[ "$output" == *"no dossier task linkage"* ]]
   [ ! -f "$HOOK_TEST_TMP/dossier.log" ]
 }
 
