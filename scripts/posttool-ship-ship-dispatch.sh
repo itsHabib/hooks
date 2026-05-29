@@ -67,12 +67,26 @@ hook__ship_runs_dir() {
 # arrives in the tool response and this poll can be dropped.
 hook__cursor_watch_url() {
   local run_id="$1"
-  local events_file bc_id attempt
+  local events_file field bc_id attempt
+  # Guard against path traversal: ship workflow run ids are `wf_<id>`. Anything
+  # else (`../…`, an absolute path, empty) must never be interpolated into the
+  # filesystem path we read. run_id comes from the tool response, so treat it
+  # as untrusted.
+  [[ "$run_id" =~ ^wf_[A-Za-z0-9]+$ ]] || return 1
   events_file="$(hook__ship_runs_dir)/$run_id/events.ndjson"
   for ((attempt = 1; attempt <= 8; attempt++)); do
     if [[ -f "$events_file" ]]; then
-      bc_id="$(grep -oiE 'bc-[a-f0-9-]{8,}' "$events_file" 2>/dev/null | head -n 1 || true)"
-      if [[ -n "$bc_id" ]]; then
+      # Match the `agent_id` field specifically (not a bare `bc-` anywhere —
+      # a log line could quote a prior run's id), bounded to the head of the
+      # file (the id lands in the first status event, so there's no reason to
+      # scan a large log). The segment-form pattern `bc-<hex>(-<hex>)*`
+      # excludes a stray trailing dash from a truncated line.
+      field="$(head -n 50 "$events_file" 2>/dev/null \
+        | grep -oiE '"agent_id":"bc-[a-f0-9]{8,}(-[a-f0-9]+)*"' \
+        | head -n 1 || true)"
+      if [[ -n "$field" ]]; then
+        bc_id="${field#\"agent_id\":\"}"   # strip leading "agent_id":"
+        bc_id="${bc_id%\"}"                # strip trailing "
         printf 'https://cursor.com/agents/%s' "$bc_id"
         return 0
       fi
