@@ -20,6 +20,45 @@ load test_helper
   [[ "$output" != *"task_update"* ]]
 }
 
+@test "dispatch links Cursor watch URL for a cloud run" {
+  # Seed the run's events.ndjson with a `bc-` agent id (first status event),
+  # mirroring what cursor cloud writes seconds after dispatch.
+  export SHIP_RUNS_DIR="$TEST_TMP/ship-runs"
+  mkdir -p "$SHIP_RUNS_DIR/wf_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  printf '%s\n' \
+    '{"type":"status","agent_id":"bc-18d74228-8176-4c00-ac9e-0eb10abb1405"}' \
+    >"$SHIP_RUNS_DIR/wf_01ARZ3NDEKTSV4RRFFQ69G5FAV/events.ndjson"
+
+  substitute_workdir "$BATS_TEST_DIRNAME/fixtures/ship-dispatch-cloud-event.json" \
+    | "$DISPATCH_HOOK"
+
+  run dossier_calls
+  [ "$status" -eq 0 ]
+  # Still appends the dispatch note...
+  [[ "$output" == *"task_update --id tsk_01KS6R3A51BE3CR6YS8DJ4DBDS"* ]]
+  # ...and ferries the watch URL as a kind:url artifact on the same task.
+  [[ "$output" == *"artifact_link --project mcp-workstation --task tsk_01KS6R3A51BE3CR6YS8DJ4DBDS --kind url --ref https://cursor.com/agents/bc-18d74228-8176-4c00-ac9e-0eb10abb1405 --label Cursor agent watch URL --actor hook:ship-dispatch"* ]]
+}
+
+@test "dispatch does not link a watch URL for a local run" {
+  # A local dispatch has no cloud signal in tool_input. Even with a stray
+  # events.ndjson carrying a bc- id present, the cloud gate must short-circuit
+  # before any poll or link.
+  export SHIP_RUNS_DIR="$TEST_TMP/ship-runs"
+  mkdir -p "$SHIP_RUNS_DIR/wf_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  printf '%s\n' \
+    '{"type":"status","agent_id":"bc-deadbeefcafe-0000"}' \
+    >"$SHIP_RUNS_DIR/wf_01ARZ3NDEKTSV4RRFFQ69G5FAV/events.ndjson"
+
+  substitute_workdir "$BATS_TEST_DIRNAME/fixtures/ship-dispatch-event.json" \
+    | "$DISPATCH_HOOK"
+
+  run dossier_calls
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"task_update --id tsk_01KS6R3A51BE3CR6YS8DJ4DBDS"* ]]
+  [[ "$output" != *"--kind url"* ]]
+}
+
 @test "getrun ignores still-running workflow" {
   substitute_workdir "$BATS_TEST_DIRNAME/fixtures/getrun-running-event.json" \
     | "$GETRUN_HOOK"

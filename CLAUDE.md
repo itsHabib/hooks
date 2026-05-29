@@ -15,7 +15,7 @@ triage rather than the agent's transcript.
 
 Wave-1 (integration-layer) shipped 2026-05-22 → 27. Four hooks live:
 
-- `posttool-ship-ship-dispatch.sh` — notes ship dispatches into the linked task
+- `posttool-ship-ship-dispatch.sh` — notes ship dispatches into the linked task; on cloud runs also links the Cursor agent watch URL (`cursor.com/agents/<bc-id>`) as a `kind:url` artifact
 - `posttool-ship-getrun.sh` — links terminal ship runs as `kind:run` artifacts (also appends a terminal note on `failed` / `cancelled`)
 - `posttool-gh-pr-create.sh` — auto-links new PRs as `kind:pr` artifacts
 - `posttool-gh-pr-merge.sh` — auto-completes the linked task + links the merge commit as `kind:commit`
