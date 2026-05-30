@@ -237,6 +237,21 @@ WSL on Windows).
 | **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/pers/hooks/...`. |
 | **HOOK_NAME at top of every hook** | `lib/dossier-cli.sh`'s failure log uses it as the hook-name column; without it, failures log as `unknown-hook`. |
 
+<!-- BEGIN eng-philo (managed by /eng-philo — re-run to refresh; hand-edits inside this block will be overwritten) -->
+## Engineering principles
+
+How code is written here — Dave Cheney lineage ([Practical Go](https://dave.cheney.net/practical-go)): simplicity, clarity, line-of-sight. Apply on every change; the lint below catches the slips.
+
+1. **No `else` — line-of-sight.** Handle errors / edge cases with early returns and guard clauses; keep the happy path un-indented, flowing down the left margin. Reaching for `else` → return early instead.
+2. **Shallow nesting — ≤2 levels *per scope*.** A `for` + an `if` is the ceiling in one scope. The budget is per-scope, not per-function — a closure / anon fn is its own scope, so a `for`+`if` inside a closure is fine. Deeper in one scope → extract a function.
+3. **Policy vs mechanism.** Separate the decisions (policy: validation, state machines, business rules) from the plumbing (mechanism: persistence, transport, I/O). Mechanism is dumb and swappable; policy lives in a layer above it. Never let policy leak into a mechanism layer.
+4. **Composition of single-responsibility layers.** Each layer / package owns ~one responsibility; the app is a *composition* of them; any piece is swappable without rippling into the others. Dependencies flow one direction.
+5. **Small, sharp APIs.** Export the least callers need. Intention-revealing names. Accept the narrowest input, return concrete types. Make the zero value useful.
+6. **Errors are values; simplicity over cleverness.** Handle or propagate errors explicitly — never swallow. Readable > clever > short. A little copying beats a premature abstraction or dependency.
+
+_Stack not detected — no manifest at repo root (this repo is pure Bash + jq). Universals only; re-run `/eng-philo` if a Rust / Go / Elixir / Node / Python manifest is added to pick up the stack-specific idioms + enforcing lints._
+<!-- END eng-philo -->
+
 ## Common gotchas
 
 - **Mock-reality drift.** `tests/fixtures/bin/dossier` and `tests/fixtures/mock-dossier.sh` mirror real dossier wire shape (`project` = id, `project_slug` = slug). When the dossier wire format changes, update the mocks here OR `make smoke` will catch it in CI. Don't author hook logic against a hand-crafted mock that's drifted from reality — that's how the 2026-05-23 silent-fail outage happened.
