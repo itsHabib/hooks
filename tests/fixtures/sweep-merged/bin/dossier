@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log="${HOOK_TEST_TMP:?}/dossier.log"
+state_dir="${HOOK_TEST_TMP}/sweep-dossier-state"
+state_file="$state_dir/tasks.json"
+mkdir -p "$(dirname "$log")" "$state_dir"
+printf '%s\n' "$*" >>"$log"
+
+_state_key() {
+  printf '%s' "$*" | cksum | awk '{print $1}'
+}
+
+_record_call() {
+  local verb="$1"
+  local key
+  key="$(_state_key "$*")"
+  if [[ -f "$state_dir/${verb}.${key}" ]]; then
+    printf '%s NOOP\n' "$verb" >>"$log"
+    return 0
+  fi
+  touch "$state_dir/${verb}.${key}"
+  printf '%s NEW\n' "$verb" >>"$log"
+}
+
+_init_tasks() {
+  if [[ -f "$state_file" ]]; then
+    return 0
+  fi
+  cat >"$state_file" <<'EOF'
+[
+  {
+    "id": "tsk_SWEEP01",
+    "project": "prj_FIXTURESWEEP01",
+    "project_slug": "mcp-workstation",
+    "slug": "sweep-merged-task",
+    "title": "Sweep merged task",
+    "status": "in_progress"
+  },
+  {
+    "id": "tsk_SWEEP02",
+    "project": "prj_FIXTURESWEEP02",
+    "project_slug": "mcp-workstation",
+    "slug": "open-pr-task",
+    "title": "Open PR task",
+    "status": "todo"
+  },
+  {
+    "id": "tsk_SWEEP03",
+    "project": "prj_FIXTURESWEEP03",
+    "project_slug": "mcp-workstation",
+    "slug": "closed-pr-task",
+    "title": "Closed PR task",
+    "status": "claimed"
+  }
+]
+EOF
+}
+
+_set_task_status() {
+  local id="$1"
+  local status="$2"
+  local tmp
+  tmp="$(mktemp)"
+  jq --arg id "$id" --arg status "$status" '
+    map(if .id == $id then .status = $status else . end)
+  ' "$state_file" >"$tmp"
+  mv "$tmp" "$state_file"
+}
+
+_arg_value() {
+  local flag="$1"
+  shift
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "$flag" && -n "${2:-}" ]]; then
+      printf '%s' "$2"
+      return 0
+    fi
+    shift
+  done
+  return 1
+}
+
+_init_tasks
+
+case "$*" in
+  *task_list*)
+    open_statuses='["todo","claimed","in_progress"]'
+    jq --argjson open "$open_statuses" '
+      [.[] | select(.status as $s | $open | index($s))]
+    ' "$state_file"
+    ;;
+  *task_claim*)
+    _record_call task_claim "$*"
+    id="$(_arg_value --id "$@")"
+    if [[ -n "$id" ]]; then
+      current="$(jq -r --arg id "$id" '.[] | select(.id == $id) | .status' "$state_file")"
+      if [[ "$current" == "todo" ]]; then
+        _set_task_status "$id" "claimed"
+      fi
+    fi
+    ;;
+  *task_update*)
+    _record_call task_update "$*"
+    id="$(_arg_value --id "$@")"
+    status="$(_arg_value --status "$@")"
+    if [[ -n "$id" && -n "$status" ]]; then
+      _set_task_status "$id" "$status"
+    fi
+    ;;
+  *task_complete*)
+    _record_call task_complete "$*"
+    id="$(_arg_value --id "$@")"
+    if [[ -n "$id" ]]; then
+      _set_task_status "$id" "done"
+    fi
+    ;;
+  *artifact_link*)
+    _record_call artifact_link "$*"
+    ;;
+  *)
+    echo "unexpected dossier invocation: $*" >&2
+    exit 1
+    ;;
+esac

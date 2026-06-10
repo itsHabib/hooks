@@ -151,13 +151,56 @@ dossier_task_update() {
   _dossier_run task_update "${cmd[@]}" >/dev/null
 }
 
-# Usage: dossier_task_list [project_slug] [limit]
+# Usage: dossier_task_claim <id> [actor]
+# Returns 0 on success (including idempotent re-claim). Non-zero on failure.
+dossier_task_claim() {
+  local id="$1"
+  local actor="${2:-}"
+  local -a cmd=( "$DOSSIER_BIN" )
+  local arg
+
+  while IFS= read -r -d '' arg; do
+    cmd+=( "$arg" )
+  done < <(_dossier_corpus_args)
+
+  cmd+=( task_claim --id "$id" )
+  [[ -n "$actor" ]] && cmd+=( --actor "$actor" )
+
+  _dossier_run task_claim "${cmd[@]}" >/dev/null
+}
+
+# Usage: dossier_task_update_status <id> <status> [note] [actor]
+# Sets task status via dossier task_update. Returns 0 on success.
+dossier_task_update_status() {
+  local id="$1"
+  local status="$2"
+  local note="${3:-}"
+  local actor="${4:-}"
+  local -a cmd=( "$DOSSIER_BIN" )
+  local arg
+
+  while IFS= read -r -d '' arg; do
+    cmd+=( "$arg" )
+  done < <(_dossier_corpus_args)
+
+  cmd+=( task_update --id "$id" --status "$status" )
+  [[ -n "$note" ]] && cmd+=( --note "$note" )
+  [[ -n "$actor" ]] && cmd+=( --actor "$actor" )
+
+  _dossier_run task_update "${cmd[@]}" >/dev/null
+}
+
+# Usage: dossier_task_list [project_slug] [limit] [statuses]
+# `statuses` is an optional comma-separated list (e.g. `todo,in_progress`).
 # Prints matching tasks as a JSON array on stdout.
 dossier_task_list() {
   local project="${1:-}"
   local limit="${2:-}"
+  local statuses="${3:-}"
   local -a cmd=( "$DOSSIER_BIN" )
   local arg
+  local -a status_arr=()
+  local s
 
   while IFS= read -r -d '' arg; do
     cmd+=( "$arg" )
@@ -166,6 +209,12 @@ dossier_task_list() {
   cmd+=( task_list )
   [[ -n "$limit" ]] && cmd+=( --limit "$limit" )
   [[ -n "$project" ]] && cmd+=( --project "$project" )
+  if [[ -n "$statuses" ]]; then
+    IFS=',' read -ra status_arr <<<"$statuses"
+    for s in "${status_arr[@]}"; do
+      cmd+=( --status "$s" )
+    done
+  fi
 
   _dossier_run task_list "${cmd[@]}"
 }

@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+bats_require_minimum_version 1.5.0
+
+load test_helper
+
+setup() {
+  export PATH="$BATS_TEST_DIRNAME/fixtures/sweep-merged/bin:$PATH"
+  export DOSSIER_BIN=dossier
+  export DOSSIER_CORPUS="$BATS_TEST_DIRNAME/fixtures/sweep-merged/corpus"
+  export HOOK_TEST_TMP="$BATS_TEST_DIRNAME/tmp/sweep-merged"
+  rm -rf "$HOOK_TEST_TMP"
+  mkdir -p "$HOOK_TEST_TMP"
+  export HOOKS_ERROR_LOG="$HOOK_TEST_TMP/hooks-errors.log"
+  chmod +x \
+    "$BATS_TEST_DIRNAME/fixtures/sweep-merged/bin/dossier" \
+    "$BATS_TEST_DIRNAME/fixtures/sweep-merged/bin/gh" \
+    "$BATS_TEST_DIRNAME/../scripts/sweep-merged.sh"
+}
+
+run_sweep() {
+  run "$BATS_TEST_DIRNAME/../scripts/sweep-merged.sh" "$@"
+}
+
+@test "merged PR task is claimed, completed, and linked on first sweep" {
+  run_sweep
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"task_slug | PR | state | action-taken"* ]]
+  [[ "$output" == *"sweep-merged-task | #101 | MERGED | swept"* ]]
+  [[ "$output" == *"open-pr-task | #102 | OPEN | untouched"* ]]
+  [[ "$output" == *"closed-pr-task | #103 | CLOSED | untouched"* ]]
+
+  grep -q "task_claim" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "task_update" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "task_complete" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "artifact_link" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "abc123def4567890abcdef1234567890abcdef12" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "PR #101 merge commit (swept)" "$HOOK_TEST_TMP/dossier.log"
+  grep -q "pr view 101" "$HOOK_TEST_TMP/gh.log"
+  ! grep -qE 'task_list[[:space:]].*--limit' "$HOOK_TEST_TMP/dossier.log"
+}
+
+@test "second sweep is a no-op at the dossier write layer" {
+  run_sweep
+  [ "$status" -eq 0 ]
+
+  first_claim="$(grep -c 'task_claim NEW' "$HOOK_TEST_TMP/dossier.log")"
+  first_update="$(grep -c 'task_update NEW' "$HOOK_TEST_TMP/dossier.log")"
+  first_complete="$(grep -c 'task_complete NEW' "$HOOK_TEST_TMP/dossier.log")"
+  first_link="$(grep -c 'artifact_link NEW' "$HOOK_TEST_TMP/dossier.log")"
+  [ "$first_claim" -eq 1 ]
+  [ "$first_update" -eq 1 ]
+  [ "$first_complete" -eq 1 ]
+  [ "$first_link" -eq 1 ]
+
+  run_sweep
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"swept"* ]]
+
+  [ "$(grep -c 'task_claim NEW' "$HOOK_TEST_TMP/dossier.log")" -eq 1 ]
+  [ "$(grep -c 'task_update NEW' "$HOOK_TEST_TMP/dossier.log")" -eq 1 ]
+  [ "$(grep -c 'task_complete NEW' "$HOOK_TEST_TMP/dossier.log")" -eq 1 ]
+  [ "$(grep -c 'artifact_link NEW' "$HOOK_TEST_TMP/dossier.log")" -eq 1 ]
+  [ "$(grep -c 'task_list' "$HOOK_TEST_TMP/dossier.log")" -eq 2 ]
+}
+
+@test "--dry-run performs zero dossier mutations" {
+  run_sweep --dry-run
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sweep-merged-task | #101 | MERGED | would-sweep"* ]]
+  if [[ -f "$HOOK_TEST_TMP/dossier.log" ]]; then
+    ! grep -qE 'task_claim|task_update|task_complete|artifact_link' "$HOOK_TEST_TMP/dossier.log"
+  fi
+  grep -q "pr view 101" "$HOOK_TEST_TMP/gh.log"
+}
+
+@test "missing gh is an infrastructure error" {
+  local minimal_bin="$HOOK_TEST_TMP/minimal-bin"
+  local cmd
+  mkdir -p "$minimal_bin"
+  cp "$BATS_TEST_DIRNAME/fixtures/sweep-merged/bin/dossier" "$minimal_bin/dossier"
+  chmod +x "$minimal_bin/dossier"
+  for cmd in bash jq dirname cat printf mkdir rm mktemp awk sed grep head tr date; do
+    ln -sf "$(command -v "$cmd")" "$minimal_bin/$cmd"
+  done
+
+  run --separate-stderr env PATH="$minimal_bin" "$BATS_TEST_DIRNAME/../scripts/sweep-merged.sh"
+  [ "$status" -ne 0 ]
+  [[ "$stderr" == *"gh not found"* ]]
+  [ ! -f "$HOOK_TEST_TMP/dossier.log" ]
+}
