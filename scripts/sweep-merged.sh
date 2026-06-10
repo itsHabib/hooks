@@ -31,11 +31,6 @@ _die_infra() {
   exit 1
 }
 
-_short_sha() {
-  local sha="$1"
-  printf '%s' "${sha:0:7}"
-}
-
 _task_has_commit_artifact() {
   local project="$1"
   local task_id="$2"
@@ -58,40 +53,48 @@ _sweep_merged_task() {
   local pr_num="$4"
   local repo="$5"
   local merge_sha="$6"
-  local note label short_sha action
+  local task_status="$7"
+  local note label action
 
-  short_sha="$(_short_sha "$merge_sha")"
   note="merged in $merge_sha (PR #$pr_num, swept)"
   label="PR #$pr_num merge commit (swept)"
   action="swept"
-
-  if _task_has_commit_artifact "$project_slug" "$task_id" "$merge_sha"; then
-    printf '%s | #%s | MERGED | already-linked\n' "$task_slug" "$pr_num"
-    return 0
-  fi
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
     printf '%s | #%s | MERGED | would-sweep\n' "$task_slug" "$pr_num"
     return 0
   fi
 
-  if ! dossier_task_claim "$task_id" "$ACTOR"; then
-    printf '%s | #%s | MERGED | dossier-claim-failed\n' "$task_slug" "$pr_num"
+  # Link the merge commit FIRST — the durable fact lands before any status
+  # mutation. A crash between link and complete is then resumable: the task is
+  # still open, the next sweep finds the artifact and skips straight to the
+  # close-out instead of stranding a done-but-unlinked task.
+  if _task_has_commit_artifact "$project_slug" "$task_id" "$merge_sha"; then
+    action="swept-resumed"
+  elif ! dossier_artifact_link "$project_slug" "$task_id" "commit" "$merge_sha" "$label" "$ACTOR"; then
+    printf '%s | #%s | MERGED | dossier-link-failed\n' "$task_slug" "$pr_num"
     return 0
   fi
 
-  if ! dossier_task_update_status "$task_id" "in_progress" "sweep-merged: advancing to in_progress" "$ACTOR"; then
-    printf '%s | #%s | MERGED | dossier-update-failed\n' "$task_slug" "$pr_num"
-    return 0
+  # Claim only from `todo` — a claimed/in_progress task is held by another
+  # actor and cross-actor claim errors by design; update/complete carry their
+  # own actor attribution and proceed without stealing the claim.
+  if [[ "$task_status" == "todo" ]]; then
+    if ! dossier_task_claim "$task_id" "$ACTOR"; then
+      printf '%s | #%s | MERGED | dossier-claim-failed\n' "$task_slug" "$pr_num"
+      return 0
+    fi
+  fi
+
+  if [[ "$task_status" != "in_progress" ]]; then
+    if ! dossier_task_update_status "$task_id" "in_progress" "sweep-merged: advancing to in_progress" "$ACTOR"; then
+      printf '%s | #%s | MERGED | dossier-update-failed\n' "$task_slug" "$pr_num"
+      return 0
+    fi
   fi
 
   if ! dossier_task_complete "$task_id" "$note" "$ACTOR"; then
     printf '%s | #%s | MERGED | dossier-complete-failed\n' "$task_slug" "$pr_num"
-    return 0
-  fi
-
-  if ! dossier_artifact_link "$project_slug" "$task_id" "commit" "$merge_sha" "$label" "$ACTOR"; then
-    printf '%s | #%s | MERGED | dossier-link-failed\n' "$task_slug" "$pr_num"
     return 0
   fi
 
@@ -103,6 +106,7 @@ _process_candidate() {
   local task_id="$2"
   local task_slug="$3"
   local pr_url="$4"
+  local task_status="$5"
   local parsed repo pr_num pr_json state merge_sha action
 
   if ! parsed="$(parse_github_pr_ref "$pr_url")"; then
@@ -118,14 +122,16 @@ _process_candidate() {
   fi
 
   state="$(jq -r '.state // "UNKNOWN"' <<<"$pr_json")"
+  state="${state%$'\r'}"
   merge_sha="$(jq -r '.mergeCommit.oid // empty' <<<"$pr_json")"
+  merge_sha="${merge_sha%$'\r'}"
 
   if [[ "$state" == "MERGED" ]]; then
-    if [[ -z "$merge_sha" || "$merge_sha" == "null" ]]; then
+    if [[ -z "$merge_sha" ]]; then
       printf '%s | #%s | MERGED | missing-merge-sha\n' "$task_slug" "$pr_num"
       return 0
     fi
-    _sweep_merged_task "$project_slug" "$task_id" "$task_slug" "$pr_num" "$repo" "$merge_sha"
+    _sweep_merged_task "$project_slug" "$task_id" "$task_slug" "$pr_num" "$repo" "$merge_sha" "$task_status"
     return 0
   fi
 
@@ -159,11 +165,14 @@ _main() {
     [[ -z "$row" ]] && continue
     rows+=( "$row" )
   done < <(jq -r '
-    .[] | [.project_slug, .id, .slug] | @tsv
+    .[] | [.project_slug, .id, .slug, .status] | @tsv
   ' <<<"$tasks_json")
 
+  local task_status
   for row in "${rows[@]}"; do
-    IFS=$'\t' read -r project_slug task_id task_slug <<<"$row"
+    IFS=$'\t' read -r project_slug task_id task_slug task_status <<<"$row"
+    # Windows jq emits CRLF; the stray \r rides on the last TSV field.
+    task_status="${task_status%$'\r'}"
 
     if [[ -z "$project_slug" || "$project_slug" == "null" ]]; then
       continue
@@ -182,8 +191,9 @@ _main() {
     fi
 
     while IFS= read -r pr_url; do
+      pr_url="${pr_url%$'\r'}"
       [[ -z "$pr_url" ]] && continue
-      line="$(_process_candidate "$project_slug" "$task_id" "$task_slug" "$pr_url")"
+      line="$(_process_candidate "$project_slug" "$task_id" "$task_slug" "$pr_url" "$task_status")"
       summary+=( "$line" )
     done <<<"$pr_rows"
   done
@@ -195,6 +205,18 @@ _main() {
   fi
 
   printf '%s\n' "${summary[@]}"
+
+  # Contract: exit non-zero on infrastructure errors. Rows whose action ends
+  # in `-failed` (gh unreachable, dossier write failures) are exactly those —
+  # cron/operators must see a failing exit, not a green sweep with buried rows.
+  local failures=0
+  for line in "${summary[@]}"; do
+    [[ "$line" == *"-failed" ]] && failures=$((failures + 1))
+  done
+  if [[ "$failures" -gt 0 ]]; then
+    printf 'sweep-merged: %s infrastructure failure(s) — see rows above\n' "$failures" >&2
+    return 1
+  fi
 }
 
 while [[ $# -gt 0 ]]; do

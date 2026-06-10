@@ -46,6 +46,14 @@ _init_tasks() {
     "status": "todo"
   },
   {
+    "id": "tsk_SWEEP04",
+    "project": "prj_FIXTURESWEEP04",
+    "project_slug": "mcp-workstation",
+    "slug": "todo-merged-task",
+    "title": "Todo merged task",
+    "status": "todo"
+  },
+  {
     "id": "tsk_SWEEP03",
     "project": "prj_FIXTURESWEEP03",
     "project_slug": "mcp-workstation",

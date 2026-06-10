@@ -9,6 +9,9 @@ case "$*" in
   *"pr view 101"*"state,mergeCommit"*)
     printf '{"state":"MERGED","mergeCommit":{"oid":"abc123def4567890abcdef1234567890abcdef12"}}'
     ;;
+  *"pr view 104"*"state,mergeCommit"*)
+    printf '{"state":"MERGED","mergeCommit":{"oid":"beef104beef104beef104beef104beef104beef1"}}'
+    ;;
   *"pr view 102"*"state,mergeCommit"*)
     printf '{"state":"OPEN","mergeCommit":null}'
     ;;

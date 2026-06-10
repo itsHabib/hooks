@@ -29,6 +29,6 @@ artifact_list_for_project() {
   jq -R -s '
     split("\n")
     | map(select(length > 0))
-    | map(fromjson)
+    | map(try fromjson)   # tolerate a corrupt line rather than aborting the sweep
   ' "$path"
 }
