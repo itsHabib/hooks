@@ -34,7 +34,7 @@ catches mock-reality drift before merge.
 <!-- BEGIN dev-workbench (managed by /dev-workbench skill — re-run to refresh; hand-edits inside this block will be overwritten) -->
 ## Dev workbench
 
-Several MCP servers + skills are available in any Claude session on this machine — the dev-workflow infrastructure built across the portfolio. This repo is itself part of that infrastructure: every hook here writes back into dossier and rides on top of ship runs. When the signal matches, **just call the verb**. Don't ask permission.
+Several MCP servers + skills are available in any Claude session on this machine — the dev-workflow infrastructure built across the portfolio. This repo is itself part of that infrastructure: every hook here writes back into dossier and rides on top of ship runs. When the signal matches, **just call the verb**. Don't ask permission. Stuck on a *knowledge* question about another portfolio repo — how it behaves, its conventions, what's in flight there — `/consult` its steward instead of asking the operator; only *authority* questions (direction, spend, irreversible calls) go to the operator.
 
 ### dossier — project memory
 
@@ -139,6 +139,14 @@ Four sections, 1-3 sentences each: What happened / What's next / What I recommen
 
 **Pair with:** `/shipped` once the work actually lands.
 
+### `/consult` — summon a sibling repo's steward
+
+- **/consult** — summon a sibling repo's steward for a same-turn answer; knowledge questions go to a peer, authority questions to the operator.
+
+An ephemeral subagent scoped to the target repo answers in the same turn — the stuck-path escalation before pinging the operator. Read-only, no side effects.
+
+**Triggers:** "ask the `<repo>` agent", "consult `<repo>` about X", stuck mid-task on how another portfolio repo behaves, explicit `/consult`.
+
 ### `/worktree-*` — manage secondary git worktrees
 
 Thin skill family over plain `git worktree`. Use these instead of reaching for an MCP — they cover the verbs that mattered (add, list, remove, transfer, where) without an external state store. Default convention: branch name is user-chosen (no forced prefix); path is `<repo>/.claude/worktrees/<branch>/`.
@@ -186,7 +194,7 @@ The four hooks in this repo automate the dossier-side bookkeeping in steps 5-6 �
 
 ### Why this shape
 
-Each layer is independently swappable. Dossier could be Linear or GitHub Projects — it owns "what needs doing." The `/worktree-*` skills could be hand-rolled `git worktree` calls or a Codespace driver — they own "where work happens." Ship could be a different agent runner (Claude Code SDK, a local cursor subprocess, etc.) — it owns "drive an agent against a workdir + persist what happened." Huddle owns multi-seat coordination; playwright owns browser. The hooks in *this* repo are the seam that wires "agent did the thing in ship/gh" to "the thing got recorded in dossier" — substitute any one layer and only the relevant hook needs to change.
+Each layer is independently swappable. Dossier could be Linear or GitHub Projects — it owns "what needs doing." The `/worktree-*` skills could be hand-rolled `git worktree` calls or a Codespace driver — they own "where work happens." Ship could be a different agent runner (Claude Code SDK, a local cursor subprocess, etc.) — it owns "drive an agent against a workdir + persist what happened." Huddle owns multi-seat coordination; playwright owns browser; `/consult` owns the stuck path — peer knowledge before operator attention. The hooks in *this* repo are the seam that wires "agent did the thing in ship/gh" to "the thing got recorded in dossier" — substitute any one layer and only the relevant hook needs to change.
 
 Not every flow uses every tool. A one-off CLI fix can skip dossier; an existing-checkout edit can skip the worktree skills; a non-agent change skips ship. The workbench is a menu, not a checklist — but when the signals above match, default to calling the verb without checking in first.
 <!-- END dev-workbench -->
