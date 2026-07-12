@@ -276,3 +276,15 @@ _Stack not detected — no manifest at repo root (this repo is pure Bash + jq). 
 - Request Copilot, `@codex review`, and `@claude review`. (`@claude review` on this repo needs `CLAUDE_CODE_OAUTH_TOKEN` set in repo secrets; on `itsHabib/hooks` specifically that secret is already in place — but worth confirming if reviews don't fire.)
 - `make check` must pass before merge — CI gates on both bats and smoke.
 - Address review comments in cycles (~3 cap before merging anyway). Opinionated is fine; don't take comments blindly.
+
+<!-- local-offload:start -->
+## Local-first offload
+
+Before spending cloud tokens on a mechanical sub-step, check for a free local path (needs the `local` CLI / Ollama on this machine):
+
+- Narrowing a big file list, extracting structure from noisy tool output, shallow classification -> `/offload`
+- "Have we solved/decided this before?" questions about the operator's own work -> `/ask-portfolio`
+- Triaging a PR's bot-comment pile -> `/review-digest <PR#>`
+
+Deep judgment (code review, risk calls, dense-diff reasoning) stays with the primary model. If `local` is not on PATH, skip silently -- never block on this.
+<!-- local-offload:end -->
