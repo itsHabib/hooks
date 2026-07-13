@@ -34,169 +34,53 @@ catches mock-reality drift before merge.
 <!-- BEGIN dev-workbench (managed by /dev-workbench skill — re-run to refresh; hand-edits inside this block will be overwritten) -->
 ## Dev workbench
 
-Several MCP servers + skills are available in any Claude session on this machine — the dev-workflow infrastructure built across the portfolio. This repo is itself part of that infrastructure: every hook here writes back into dossier and rides on top of ship runs. When the signal matches, **just call the verb**. Don't ask permission. Stuck on a *knowledge* question about another portfolio repo — how it behaves, its conventions, what's in flight there — `/consult` its steward instead of asking the operator; only *authority* questions (direction, spend, irreversible calls) go to the operator.
+These MCPs, planes, and skills are available in any agent session on this machine; the harness injects each tool's signature, so this is the *map* — how they compose — not the per-verb manual. When the signal matches, call the verb; don't ask permission. Stuck on a *knowledge* question about another portfolio repo → `/consult` its steward; only *authority* questions (direction, spend, irreversible calls) go to the operator. **This is hooks — the PostToolUse dossier bookkeeping**; mechanical metadata-ferrying raced by the harness, not entrusted to agent diligence.
 
-### dossier — project memory
+**MCPs (in-session):**
+- **dossier** — durable project memory: projects → phases → tasks → artifacts (markdown-on-disk).
+- **ship** — the driver engine: dispatch a task to a cloud/local agent and persist the run (dispatch→poll→judgment→land→record); inspect/cancel/replay.
+- **huddle** — *optional* multi-seat coordination (Slack-backed); off the normal PR path.
+- **playwright** — browser automation when a task needs a real DOM.
 
-Long-term home for what's planned, in-flight, and shipped across the portfolio. Projects → phases (design docs) → tasks → artifacts (PRs / commits / files). Markdown-on-disk corpus; the on-disk format IS the source of truth. **The hooks in this repo write to dossier on every ferry** — every change here should think about whether it produces a clean `hook:`-actor artifact in the corpus.
+**Planes (CLIs, composed via exit codes + JSONL — not MCPs):**
+- **gate** — authorization: evaluates the *exact* PR head, emits governed-path merge authorization. Findings ≠ authorization; gate is the merge boundary.
+- **flare** — notification: best-effort escalation sink over authoritative receipts → its own Slack app/channel. Pure sink; never gates; not built on huddle.
 
-**Use proactively for:**
-
-- *"What's the state of `<project>`?"* → `mcp__dossier__project_get { slug }`, then `mcp__dossier__phase_list` + `mcp__dossier__task_list { project, status: ["in_progress"] }`.
-- *"I'm starting `<new chunk of work>`."* → `mcp__dossier__phase_add { project, slug, title, body }`.
-- *"I need to do X"* / discrete actionable surface → `mcp__dossier__task_create { project, phase?, slug, title, body }` (status defaults to `todo`).
-- Picking up a task → `mcp__dossier__task_claim { id, actor: "human:michael" }`. Re-claim by same actor is a no-op.
-- Progress on a task → `mcp__dossier__task_update { id, status?, note?, ... }`. Append notes liberally — the corpus IS the working log.
-- Open / merged PR → `mcp__dossier__artifact_link { project, task?, kind: "pr"|"commit", ref, label }` without being asked.
-- *"Done with task X."* → `mcp__dossier__task_complete { id, note? }`.
-
-**Don't use for:**
-
-- Code-level work (write the code first; *then* `artifact_link` the PR).
-- Anything that only matters within this session's scratch context.
-
-### ship — workflow execution
-
-Hands a task doc to a coding agent (cursor), persists what happened, lets you inspect / cancel / replay the run. Owns nothing about the workspace (the `/worktree-*` skills handle that) or the planning (dossier's job). Ship's `mcp__ship__get_workflow_run` is one of the events `posttool-ship-getrun.sh` listens for.
-
-**Use proactively for:**
-
-- *"Ship `<task doc>` against `<worktree>`."* → `mcp__ship__ship { workdir, docPath, repo, branch }`. V2-async — returns `{ workflowRunId, status: "running" }` immediately.
-- *"What ran on `<repo>` recently?"* / *"What's still in flight?"* → `mcp__ship__list_workflow_runs { repo?, status?, limit? }`.
-- *"What did `<wf id>` do?"* → `mcp__ship__get_workflow_run { workflowRunId }` (also accessible via the `ship://runs/{id}` resource).
-- In-flight run needs to stop → `mcp__ship__cancel_workflow_run { workflowRunId }` (idempotent on terminal rows).
-- *"Open the PR for this run."* → `mcp__ship__open_pr { workflowRunId }`.
-
-**Don't use for:**
-
-- Creating the worktree (use `/worktree-add`).
-- Writing the task doc (a normal file edit inside the worktree).
-- Recording the merged PR back to project state (dossier `artifact_link` — or let `posttool-gh-pr-merge.sh` do it for you).
-
-### huddle — multi-agent / multi-seat coordination
-
-Spins up a Slack channel + per-seat keys so multiple agents (or agent + human) can share a working context without polluting any one session's chat. Each "seat" gets a key it uses to post / read; the orchestrator (huddle creator) has full access via `huddleId`. Not currently exercised by any hook in this repo.
-
-**Use proactively for:**
-
-- *"Set up a coordination channel for `<purpose>` with `<N>` agents."* → `mcp__huddle__huddle_create { purpose, orchestrator: { id, displayName }, seats: [{ id, displayName }, ...], ttlHours? }`. Returns per-seat keys + Slack channel id.
-- *"What huddles are open?"* → `mcp__huddle__huddle_list { active: true }`.
-- *"Post an update into huddle `<id>`."* → `mcp__huddle__huddle_post { huddleId, body, key?, replyTo? }`. Orchestrator omits `key`; seats include their key.
-- *"Catch up on the channel."* → `mcp__huddle__huddle_read { huddleId?, key?, since?, limit? }`.
-- Done → `mcp__huddle__huddle_close { huddleId }` (archives the Slack channel + marks done).
-
-**Don't use for:**
-
-- One-off agent runs that don't need cross-agent coordination — just ship the task and read the events log.
-- Long-term project memory (dossier owns that).
-
-### playwright — browser automation
-
-Headless / headed browser control via Playwright. Use when an agent task genuinely needs to interact with a web UI (login flow, scraping rendered DOM, screenshotting a page state) rather than hitting an API.
-
-**Use proactively for:**
-
-- *"Open `<url>` and check `<element>`."* → `mcp__plugin_playwright_playwright__browser_navigate { url }` then `..._browser_snapshot` (returns the accessibility tree) or `..._browser_take_screenshot`.
-- *"Fill `<form>` and submit."* → `..._browser_fill_form { fields: [...] }` then `..._browser_click { ref }`.
-- *"Capture network requests during `<flow>`."* → `..._browser_navigate` + `..._browser_network_requests` after the action.
-- *"Run JS against the page."* → `..._browser_evaluate { code }`.
-
-**Don't use for:**
-
-- API testing — use `curl` / `gh` / a real HTTP client.
-- Anything where the page is server-rendered and could be fetched via `WebFetch` instead.
-- Tasks where the operator's actual Chrome session is needed (use the claude-in-chrome MCP for that — separate tier).
-
-### `/work-driver` — drive agent-led impl end-to-end
-
-Coordinates one or N parallel streams through the full loop: pre-flight worktrees, fan out via `ship.ship`, poll terminal states, verify cursor's auto-commit (or commit manually if absent), open PRs, drive review cycles, merge in dep order, cleanup. Reads a manifest produced by `/work-driver-prep` (the common case) or a list of one-off spec docs (ad-hoc).
-
-**Triggers:** "drive this impl work", "run this through ship", "fire N parallel streams", "ship and merge", explicit `/work-driver`.
-
-**Pair with:** `/work-driver-prep` when you have a batch of dossier tasks and want one spec doc per task + conflict-aware batching before fanning out.
-
-### `/work-driver-prep` — spec docs + batched plan from a backlog of tasks
-
-Takes a list of dossier tasks (or a phase slug) and emits one spec doc per task plus a structured `driver.md` manifest grouping the specs into parallel-safe batches. Removes the manual gap between "I have N todo tasks" and "I can invoke `/work-driver`."
-
-**Triggers:** "ship the open follow-ups", "fan these tasks out", "prep work-driver", "set up the hygiene PRs", explicit `/work-driver-prep`.
-
-**Pair with:** `/work-driver` (consumes the emitted manifest).
-
-### `/shipped` — retrospective recap after a chunk of work lands
-
-Post-batch summary: PRs merged + weighted-LOC, dossier task closures, chips filed, friction-log delta, what's open, next moves. Auto-detects work-driver manifests for ground truth; falls back to git/gh/dossier signals otherwise.
-
-**Triggers:** "what just shipped", "what did we ship", "what merged today", "post-run summary", "what now", explicit `/shipped`.
-
-**Pair with:** `/work-driver` (natural post-fan-out follow-up). Distinct from `/status` — `/shipped` is retrospective on landed work, `/status` is in-flight.
-
-### `/status` — tight in-flight status update
-
-Four sections, 1-3 sentences each: What happened / What's next / What I recommend / What I need from you. Skip any section that's genuinely empty.
-
-**Triggers:** "give me an update", "status", "where are we", "sitrep", "recap", "summarize the situation", explicit `/status`.
-
-**Pair with:** `/shipped` once the work actually lands.
-
-### `/consult` — summon a sibling repo's steward
-
-- **/consult** — summon a sibling repo's steward for a same-turn answer; knowledge questions go to a peer, authority questions to the operator.
-
-An ephemeral subagent scoped to the target repo answers in the same turn — the stuck-path escalation before pinging the operator. Read-only, no side effects.
-
-**Triggers:** "ask the `<repo>` agent", "consult `<repo>` about X", stuck mid-task on how another portfolio repo behaves, explicit `/consult`.
-
-### `/worktree-*` — manage secondary git worktrees
-
-Thin skill family over plain `git worktree`. Use these instead of reaching for an MCP — they cover the verbs that mattered (add, list, remove, transfer, where) without an external state store. Default convention: branch name is user-chosen (no forced prefix); path is `<repo>/.claude/worktrees/<branch>/`.
-
-- **`/worktree-add`** — *"spin up a worktree for <ticket>"* → creates `.claude/worktrees/<branch>/`, copies untracked CLAUDE.md if present
-- **`/worktree-list`** — *"what worktrees do I have"* → branch, dirty state, optional PR/CI from `gh`
-- **`/worktree-remove`** — *"clean up the worktree"* → dirty-state aware (commit-WIP / stash / discard)
-- **`/worktree-transfer`** — *"bring this work over to main"* → removes secondary, checks out branch in root
-- **`/worktree-where`** — *"where am I"* → which worktree, branch, and cwd this session is pointing at
+**Skills:**
+- **/work-driver** [+ **/work-driver-prep**] — drive agent-led impl end-to-end; prep builds the specs + conflict-batched plan.
+- **/pr-risk** — size how much review a PR needs (deterministic floor + agent advisory); upstream of the reviewers — it decides *how much*, they *do* it.
+- **/review-coordinator** [+ **/review-digest**] — consolidate the AI PR reviewers into one verdict (the judge over the finders); digest pre-triages the bot pile locally.
+- **/shipped** · **/status** · **/wip** — retrospective recap · in-flight update · cross-store live board.
+- **/consult** — summon a sibling repo's steward for a same-turn answer; knowledge → peer, authority → operator.
+- **/worktree-*** — add · list · remove · transfer · where, over `git worktree`.
 
 ### The loop
 
-A typical end-to-end flow when working on any portfolio repo:
-
 ```
-mcp__dossier__task_create        # plan: discrete shippable unit
-       │
-       ▼
-/worktree-add <branch>           # isolate: own branch + dir under .claude/worktrees/
-       │
-       ▼
-(write the spec doc inside the worktree, commit, push)
-       │
-       ▼
-mcp__ship__ship { workdir, docPath, repo, branch }    # dispatch cursor against the spec
-       │     │
-       │     └─ /work-driver coordinates the rest if multiple streams:
-       │        poll → land → PR → review cycles → merge → cleanup
-       ▼
-gh pr create + request reviewers (Copilot + @codex + @claude)
-       │     │
-       │     └─ posttool-gh-pr-create.sh fires → kind:pr artifact lands in dossier
-       ▼
-gh pr merge --squash --admin --delete-branch     # remote-only delete
-       │     │
-       │     └─ posttool-gh-pr-merge.sh fires → task_complete + kind:commit artifact
-       ▼
-/shipped                                          # retrospective recap
-       │
-       ▼
-/worktree-remove                                  # local cleanup (or /worktree-transfer to drain into root)
+dossier task → /worktree-add → spec → ship driver (cloud-first: dispatch→poll→judgment→land→record)
+   → PR + CI → /pr-risk tiers it → reviewers fire → /review-coordinator → one verdict
+   → gate evaluates the exact head → governed-path authorization → merge
+   → authoritative receipts → dossier close-out → /worktree-remove
+        ↘ any attention/terminal receipt → best-effort flare sweep → Slack   (independent; never gates)
 ```
 
-The four hooks in this repo automate the dossier-side bookkeeping in steps 5-6 — without them, the operator (or model) has to remember to call `artifact_link` and `task_complete` manually every time.
+`/work-driver` coordinates dispatch→poll→land and runs its own review triage inline. `/pr-risk` and `/review-coordinator` are steps you *invoke* — the driver→pr-risk / driver→coordinator wiring is planned, not built, so nothing here auto-delegates.
 
 ### Why this shape
 
-Each layer is independently swappable. Dossier could be Linear or GitHub Projects — it owns "what needs doing." The `/worktree-*` skills could be hand-rolled `git worktree` calls or a Codespace driver — they own "where work happens." Ship could be a different agent runner (Claude Code SDK, a local cursor subprocess, etc.) — it owns "drive an agent against a workdir + persist what happened." Huddle owns multi-seat coordination; playwright owns browser; `/consult` owns the stuck path — peer knowledge before operator attention. The hooks in *this* repo are the seam that wires "agent did the thing in ship/gh" to "the thing got recorded in dossier" — substitute any one layer and only the relevant hook needs to change.
+Each layer owns one responsibility and is swappable without rippling: dossier owns *what needs doing*; worktree skills own *where work happens*; ship owns *drive an agent + persist the run*; pr-risk owns *how much review*; review-coordinator owns *consolidate the finders* (the bots are swappable under it); **gate owns *authorization* — is this exact head allowed to merge — which is not the reviewers' findings**; **flare owns *notification* — a best-effort sink on authoritative receipts, its own Slack app, never blocking the driver, never depending on huddle**; consult owns the stuck path; huddle owns optional multi-seat; playwright owns browser. The workbench is a menu, not a checklist — skip what a flow doesn't need.
 
-Not every flow uses every tool. A one-off CLI fix can skip dossier; an existing-checkout edit can skip the worktree skills; a non-agent change skips ship. The workbench is a menu, not a checklist — but when the signals above match, default to calling the verb without checking in first.
+### The shape underneath
+
+These tools instantiate the redesign's five contract planes — coupled only by typed artifacts (`evidence → verdict → action`), never call stacks:
+
+- **State** (remembers) — dossier + run/verdict/grant/receipt artifacts; the append-only substrate.
+- **Execution** (does) — ship's driver; emits evidence, never judges itself.
+- **Verification** (judges) — the escalate-only ladder (deterministic floor → local → premium), monotone `worst`/`max`: gate's reducer, review-coordinator, sense/triage/tracelens.
+- **Capability** (bounds) — scoped/timed grants; every effectful verb needs a live grant + a supporting verdict.
+- **Observability** (explains) — read-only, storeless views from State: flare, /wip, /shipped, /status.
+
+This section is the sixth — **Composition**: the agent + thin policy choosing which planes a task needs. The boundaries above *are* the plane laws, not conventions.
 <!-- END dev-workbench -->
 
 ## Architecture
@@ -257,7 +141,7 @@ How code is written here — Dave Cheney lineage ([Practical Go](https://dave.ch
 5. **Small, sharp APIs.** Export the least callers need. Intention-revealing names. Accept the narrowest input, return concrete types. Make the zero value useful.
 6. **Errors are values; simplicity over cleverness.** Handle or propagate errors explicitly — never swallow. Readable > clever > short. A little copying beats a premature abstraction or dependency.
 
-_Stack not detected — no manifest at repo root (this repo is pure Bash + jq). Universals only; re-run `/eng-philo` if a Rust / Go / Elixir / Node / Python manifest is added to pick up the stack-specific idioms + enforcing lints._
+_No code manifest detected — universals only; re-run `/eng-philo` once the repo has a stack manifest to add the idioms + enforcement block._
 <!-- END eng-philo -->
 
 ## Common gotchas
