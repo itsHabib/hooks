@@ -5,6 +5,16 @@ gate (gate's read verbs are allowlisted while `pers/gate/state` and bare
 merges are guarded). An allow rule is safe in proportion to the gates behind
 it — vendor calls become allowlistable *because* they go through the proxy.
 
+Scope of the guard rules, stated honestly: they block **direct literal command
+forms** of the operator-only verbs and state-dir touches — including ordinary
+variation (case, quoted executables, `Join-Path`, split tokens), which the
+guard normalizes before matching. They do **not** claim complete mediation: env
+indirection (`verb=grant; custody "$verb"`) or a pre-written script slips a text
+regex by construction. That is the accepted boundary of "discipline plus audit"
+— the same one gate declares — not a hole to paper over. The real custody of the
+mint key and secret store is what bounds those; the guard makes the routine path
+loud.
+
 Rules land in two stages, matching the custody rollout
 (workbench `docs/features/custody/spec.md` §9).
 

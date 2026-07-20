@@ -45,6 +45,23 @@ run_guard() {
   [ "$status" -eq 0 ]
 }
 
+# --- custody verbs: normalized spellings (case, quoted exe, split token) ---
+
+@test "quoted exe + capitalized verb is blocked (PowerShell call operator)" {
+  run_guard '& "custody.exe" Grant -key tracker -actions read -ttl 8h'
+  [ "$status" -eq 2 ]
+}
+
+@test "quote-split verb is blocked" {
+  run_guard 'custody gr""ant -key tracker -actions read -ttl 8h'
+  [ "$status" -eq 2 ]
+}
+
+@test "env-indirected verb is NOT caught (accepted obfuscation under discipline)" {
+  run_guard 'verb=grant; custody "$verb" -key tracker -actions read -ttl 8h'
+  [ "$status" -eq 0 ]
+}
+
 # --- custody: state dir ---
 
 @test "touching custody state is blocked" {
@@ -55,6 +72,11 @@ run_guard() {
 
 @test "windows-style custody state path is blocked" {
   run_guard 'type C:\Users\op\.custody\grants\cst_1.json'
+  [ "$status" -eq 2 ]
+}
+
+@test "Join-Path-built quoted state path is blocked" {
+  run_guard "Get-Content (Join-Path \$env:USERPROFILE '.custody\\mint.key')"
   [ "$status" -eq 2 ]
 }
 
@@ -76,6 +98,16 @@ run_guard() {
   GUARD_KEYS_DENY=1 run_guard "jq -r .vendor /c/Users/op/dev/repo/.keys"
   [ "$status" -eq 2 ]
   [[ "$stderr" == *"custody"* ]]
+}
+
+@test "uppercase .KEYS is blocked when enabled (case-insensitive)" {
+  GUARD_KEYS_DENY=1 run_guard "Get-Content .KEYS"
+  [ "$status" -eq 2 ]
+}
+
+@test "quote-split keys path is blocked when enabled" {
+  GUARD_KEYS_DENY=1 run_guard 'jq -r .vendor "./.ke""ys"'
+  [ "$status" -eq 2 ]
 }
 
 @test "keys-file rule doesn't match .keystore when enabled" {
