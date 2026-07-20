@@ -149,3 +149,37 @@ run_guard() {
   GUARD_KEYS_DENY=1 run_guard 'gh pr create --title drain --body "deleted .keys"'
   [ "$status" -eq 0 ]
 }
+
+# --- bare gh pr merge: block the real subcommand, not the word `merge` ---
+
+@test "bare gh pr merge is blocked" {
+  run_guard "gh pr merge 42 --squash --admin --delete-branch"
+  [ "$status" -eq 2 ]
+  [[ "$stderr" == *"bypasses gate"* ]]
+  [[ "$stderr" == *"Remedy:"* ]]
+}
+
+@test "gh -R o/r pr merge (repo flag before pr) is blocked" {
+  run_guard "gh -R itsHabib/hooks pr merge 42 --squash"
+  [ "$status" -eq 2 ]
+}
+
+@test "gh pr -R o/r merge (repo flag between pr and merge) is blocked" {
+  run_guard "gh pr -R itsHabib/hooks merge 42 --squash"
+  [ "$status" -eq 2 ]
+}
+
+@test "gate-emitted --match-head-commit merge passes" {
+  run_guard "gh pr merge 42 --squash --admin --match-head-commit abc123"
+  [ "$status" -eq 0 ]
+}
+
+@test "false positive: filename with gh-pr-merge segments passes" {
+  run_guard "head tests/posttool-gh-pr-merge.bats"
+  [ "$status" -eq 0 ]
+}
+
+@test "false positive: gh pr create with 'merge' in the body passes" {
+  run_guard 'gh pr create --title fix --body "this reverts the bad merge from main"'
+  [ "$status" -eq 0 ]
+}
