@@ -29,8 +29,15 @@ if printf '%s' "$cmd" | grep -qE '\bgit\b[^|;&]*\bpush\b[^|;&]*( --force([^-]|$)
 fi
 
 # bare merge (gate emits --match-head-commit; a merge without it skipped
-# gate). Inherited flags may sit between subcommands: gh pr -R o/r merge.
-if printf '%s' "$cmd" | grep -qE '\bgh\b[^|;&]*\bpr\b[^|;&]*\bmerge\b' && ! printf '%s' "$cmd" | grep -q -- '--match-head-commit'; then
+# gate). Match `merge` as the actual gh-pr subcommand: gh, then pr, then
+# merge, each a real token, with only flags (e.g. -R o/r, --repo o/r)
+# tolerated in between — never spanning into a bare word, a quoted string,
+# or a path segment. Anchoring gh to a non-[alnum._-] boundary keeps a
+# filename like posttool-gh-pr-merge.bats from tripping it (the `-` before
+# `gh` is not a match), and requiring `merge` right after the pr subcommand
+# (modulo flags) keeps `gh pr create --body "...merge..."` clean.
+flag='([[:space:]]+-[^[:space:]]*([[:space:]]+[^-[:space:]][^[:space:]]*)?)*'
+if printf '%s' "$cmd" | grep -qE "(^|[^[:alnum:]._-])gh${flag}[[:space:]]+pr${flag}[[:space:]]+merge\b" && ! printf '%s' "$cmd" | grep -q -- '--match-head-commit'; then
   deny "bare gh pr merge bypasses gate (no grant, verdict, or artifact)" \
        "run: gate gate -repo <owner/repo> -pr <n> -grant <grt_...> -state ~/pers/gate/state, then use its emitted merge command"
 fi
