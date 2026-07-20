@@ -60,4 +60,46 @@ if printf '%s' "$cmd" | grep -qE '(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*pers[/\
        "use gate subcommands; never edit state files directly"
 fi
 
+# The custody rules match against a normalized copy of the command: quotes
+# stripped (so "custody.exe", gr""ant, '.custody\..' collapse) and matching
+# done case-insensitively (Windows exe/path lookup is case-insensitive; .KEYS
+# is .keys). This covers ordinary spellings — quoting, casing, Join-Path — not
+# arbitrary obfuscation. Env indirection (verb=grant; custody "$verb") and
+# `bash -c script.sh` are out of reach of a text regex and stay so: under
+# "discipline plus audit" those are deliberate, not routine (see docs).
+norm=$(printf '%s' "$cmd" | sed "s/['\"]//g")
+
+# custody mint authority + secret entry are operator verbs (authority is
+# minted, not inferred). Governed sessions call the proxy with a grant they
+# were handed; they never mint grants or write secrets. Read verbs
+# (custody log, custody explain) pass. Match custody only in command
+# position — start of command, or right after a pipe / && / ; / subshell —
+# so prose that merely names the verb (git commit -m "document custody
+# grant", rg "custody keys" docs) doesn't trip it. Wrapper indirection
+# (sudo/env, bash -c) is out of a text regex's reach, same as env-indirection.
+if printf '%s' "$norm" | grep -qiE '(^|[|&;`(])[[:space:]]*([^[:space:];|&`]*[/\\])?custody(\.exe)?[[:space:]]+(grant|keys)\b'; then
+  deny "custody grant/keys are operator-only (mint authority + secret entry)" \
+       "surface the need; the operator runs: custody grant -key <k> -actions <a> -ttl <t>"
+fi
+
+# custody state (mint key, grant records, audit log) — only the custody
+# binary touches it. Match the path token wherever it appears (path-joined,
+# space-separated, or quoted), not only after a separator.
+if printf '%s' "$norm" | grep -qiE '(^|[^[:alnum:]_.])\.custody([/\\]|\b)'; then
+  deny "custody state is owned by the custody binary" \
+       "use custody log / custody explain; never touch state files directly"
+fi
+
+# plaintext keys-file reads — OFF by default until the custody-drain phase
+# deletes the file (flip GUARD_KEYS_DENY=1 in settings env then). Until
+# drain, skills still legitimately read it, and denying early would train
+# bypass habits. Scoped to raw-file readers (mirrors the ssh-key rule) so
+# prose that merely names the file — git commit -m "remove .keys",
+# gh pr create --body "deleted .keys" — isn't denied. \b after keys keeps
+# .keystore from matching.
+if [ "${GUARD_KEYS_DENY:-0}" = "1" ] && printf '%s' "$norm" | grep -qiE '\b(cat|cp|type|less|more|head|tail|nl|jq|rg|grep|awk|sed|cut|xxd|od|Get-Content|Copy-Item)\b[^|;&]*[ /\\]\.keys\b'; then
+  deny "plaintext keys files are drained into custody" \
+       "call the vendor through the proxy: curl http://127.0.0.1:8127/<key>/<path> with X-Custody-Grant"
+fi
+
 exit 0
