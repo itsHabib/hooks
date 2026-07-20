@@ -60,4 +60,30 @@ if printf '%s' "$cmd" | grep -qE '(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*pers[/\
        "use gate subcommands; never edit state files directly"
 fi
 
+# custody mint authority + secret entry are operator verbs (authority is
+# minted, not inferred). Governed sessions call the proxy with a grant they
+# were handed; they never mint grants or write secrets. Read verbs
+# (custody log, custody explain) pass. Subcommand-position match so paths
+# that merely contain "custody" don't trip it.
+if printf '%s' "$cmd" | grep -qE '\bcustody(\.exe)?\s+(grant|keys)\b'; then
+  deny "custody grant/keys are operator-only (mint authority + secret entry)" \
+       "surface the need; the operator runs: custody grant -key <k> -actions <a> -ttl <t>"
+fi
+
+# custody state (mint key, grant records, audit log) — only the custody
+# binary touches it
+if printf '%s' "$cmd" | grep -qE '[/\\~]\.custody([/\\]|\b)'; then
+  deny "custody state is owned by the custody binary" \
+       "use custody log / custody explain; never touch state files directly"
+fi
+
+# plaintext keys-file reads — OFF by default until the custody-drain phase
+# deletes the file (flip GUARD_KEYS_DENY=1 in settings env then). Until
+# drain, skills still legitimately read it, and denying early would train
+# bypass habits.
+if [ "${GUARD_KEYS_DENY:-0}" = "1" ] && printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])\.keys\b'; then
+  deny "plaintext keys files are drained into custody" \
+       "call the vendor through the proxy: curl http://127.0.0.1:8127/<key>/<path> with X-Custody-Grant"
+fi
+
 exit 0
