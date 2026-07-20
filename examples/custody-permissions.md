@@ -29,7 +29,9 @@ Rules land in two stages, matching the custody rollout
       "PowerShell(curl http://127.0.0.1:8127/*)",
       // custody read verbs (mint/secret verbs are guard-blocked, not allowlisted)
       "Bash(custody log:*)",
-      "Bash(custody explain:*)"
+      "PowerShell(custody log:*)",
+      "Bash(custody explain:*)",
+      "PowerShell(custody explain:*)"
     ],
     "deny": [
       // the mint key and state dir, for the Read tool (the shell path is

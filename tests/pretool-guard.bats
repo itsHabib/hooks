@@ -62,6 +62,29 @@ run_guard() {
   [ "$status" -eq 0 ]
 }
 
+# --- custody verbs: command position, not prose (P2 false-positive fix) ---
+
+@test "the verb inside a commit message is NOT blocked" {
+  run_guard 'git commit -m "document custody grant in the rulebook"'
+  [ "$status" -eq 0 ]
+}
+
+@test "the verb inside a search string is NOT blocked" {
+  run_guard 'rg "custody keys" docs'
+  [ "$status" -eq 0 ]
+}
+
+@test "piped custody verb is still blocked (command position after |)" {
+  run_guard "echo go | custody grant -key tracker -actions read -ttl 8h"
+  [ "$status" -eq 2 ]
+  [[ "$stderr" == *"operator-only"* ]]
+}
+
+@test "chained custody verb is still blocked (command position after &&)" {
+  run_guard "cd /repo && custody keys set -name tracker-pat"
+  [ "$status" -eq 2 ]
+}
+
 # --- custody: state dir ---
 
 @test "touching custody state is blocked" {
@@ -112,5 +135,17 @@ run_guard() {
 
 @test "keys-file rule doesn't match .keystore when enabled" {
   GUARD_KEYS_DENY=1 run_guard "ls app/.keystore"
+  [ "$status" -eq 0 ]
+}
+
+# --- plaintext keys file: prose naming the file, not reading it (P2 fix) ---
+
+@test "commit message naming .keys is NOT blocked even when enabled" {
+  GUARD_KEYS_DENY=1 run_guard 'git commit -m "remove .keys"'
+  [ "$status" -eq 0 ]
+}
+
+@test "PR body naming .keys is NOT blocked even when enabled" {
+  GUARD_KEYS_DENY=1 run_guard 'gh pr create --title drain --body "deleted .keys"'
   [ "$status" -eq 0 ]
 }
