@@ -20,23 +20,26 @@ deny() {
   exit 2
 }
 
-# force push (--force-with-lease is allowed)
-if printf '%s' "$cmd" | grep -qE 'git +push[^|;&]*( --force([^-]|$)|( |=)-f( |$))'; then
+# force push (--force-with-lease is allowed). Subcommands may be separated
+# from the binary by global options (git -C /repo push ...), and a +refspec
+# (git push origin +HEAD:main) forces without any flag — match both.
+if printf '%s' "$cmd" | grep -qE '\bgit\b[^|;&]*\bpush\b[^|;&]*( --force([^-]|$)|( |=)-f( |$)| \+[^ ]+)'; then
   deny "force push rewrites shared history" \
        "use --force-with-lease, or ask the operator to run it manually"
 fi
 
-# bare merge (gate emits --match-head-commit; a merge without it skipped gate)
-if printf '%s' "$cmd" | grep -qE 'gh +pr +merge' && ! printf '%s' "$cmd" | grep -q -- '--match-head-commit'; then
+# bare merge (gate emits --match-head-commit; a merge without it skipped
+# gate). Inherited flags may sit between subcommands: gh pr -R o/r merge.
+if printf '%s' "$cmd" | grep -qE '\bgh\b[^|;&]*\bpr\b[^|;&]*\bmerge\b' && ! printf '%s' "$cmd" | grep -q -- '--match-head-commit'; then
   deny "bare gh pr merge bypasses gate (no grant, verdict, or artifact)" \
        "run: gate gate -repo <owner/repo> -pr <n> -grant <grt_...> -state ~/pers/gate/state, then use its emitted merge command"
 fi
 
-# repo deletion / visibility change
-if printf '%s' "$cmd" | grep -qE 'gh +repo +delete'; then
+# repo deletion / visibility change (same intervening-flag tolerance)
+if printf '%s' "$cmd" | grep -qE '\bgh\b[^|;&]*\brepo\b[^|;&]*\bdelete\b'; then
   deny "repo deletion is irreversible" "operator runs this by hand if truly intended"
 fi
-if printf '%s' "$cmd" | grep -qE 'gh +repo +edit[^|;&]*--visibility'; then
+if printf '%s' "$cmd" | grep -qE '\bgh\b[^|;&]*\brepo\b[^|;&]*\bedit\b[^|;&]*--visibility'; then
   deny "repo visibility changes are an operator decision" \
        "surface the request; operator flips visibility manually"
 fi
