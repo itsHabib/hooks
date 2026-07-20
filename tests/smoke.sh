@@ -216,7 +216,10 @@ count_artifacts_of_kind() {
 
 task_status() {
   local id="$1"
-  "$DOSSIER" --corpus "$CORPUS" task_list --project "$PROJECT_SLUG" \
+  # --include-terminal: task_list defaults to live tasks only, and the very
+  # state this helper asserts (done, after gh-pr-merge completes the task)
+  # is terminal — without the flag the readback is empty and smoke fails.
+  "$DOSSIER" --corpus "$CORPUS" task_list --project "$PROJECT_SLUG" --include-terminal \
     | jq -r --arg id "$id" '.[] | select(.id == $id) | .status'
 }
 
