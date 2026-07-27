@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/pers/hooks/scripts/posttool-gate-verdict.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

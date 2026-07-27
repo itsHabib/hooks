@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "gate judge -run run_x -grant grt_x -decision pass -why ok"
+  },
+  "tool_response": {
+    "stdout": "{\"decision\":\"pass\"}",
+    "stderr": "",
+    "exitCode": 0
+  }
+}
