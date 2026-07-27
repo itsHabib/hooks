@@ -21,16 +21,23 @@ run_hook() {
     <"$BATS_TEST_DIRNAME/fixtures/posttool-gh-pr-merge/$fixture"
 }
 
-@test "successful merge with linked task auto-completes and links commit" {
+@test "successful merge with linked task auto-completes and links commit + receipt" {
   run_hook "success-with-task.json"
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Auto-closed dossier task gh-pr-merge-hook on PR #42 merge"* ]]
-  [[ "$output" == *"Commit linked."* ]]
+  [[ "$output" == *"Commit + receipt linked"* ]]
 
   grep -q "task_complete" "$HOOK_TEST_TMP/dossier.log"
   grep -q "artifact_link" "$HOOK_TEST_TMP/dossier.log"
   grep -q "pr view 42" "$HOOK_TEST_TMP/gh.log"
+  # Receipt: kind=receipt, canonical PR URL ref, event=merge meta.
+  grep -q -- "--kind receipt" "$HOOK_TEST_TMP/dossier.log"
+  grep -q -- "--ref https://github.com/itsHabib/mcp-workstation/pull/42" "$HOOK_TEST_TMP/dossier.log"
+  grep -q -- "--meta event=merge" "$HOOK_TEST_TMP/dossier.log"
+  grep -q -- "--json url" "$HOOK_TEST_TMP/gh.log"
+  # No --match-head-commit on this fixture → no verdict to join → no FK meta.
+  ! grep -q -- "--meta verdict=" "$HOOK_TEST_TMP/dossier.log"
   # Regression lock: artifact_link must be called with the project SLUG,
   # never an ID. Catches any future drift back to reading `.project` instead
   # of `.project_slug` from task_list output.
@@ -50,7 +57,7 @@ run_hook() {
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Auto-closed dossier task gh-pr-merge-hook on PR #43 merge"* ]]
-  [[ "$output" == *"Commit linked."* ]]
+  [[ "$output" == *"Commit + receipt linked"* ]]
 
   grep -q "task_complete" "$HOOK_TEST_TMP/dossier.log"
   grep -q "artifact_link" "$HOOK_TEST_TMP/dossier.log"
@@ -91,13 +98,27 @@ run_hook() {
   first_complete="$(grep -c 'task_complete NEW' "$HOOK_TEST_TMP/dossier.log")"
   first_link="$(grep -c 'artifact_link NEW' "$HOOK_TEST_TMP/dossier.log")"
   [ "$first_complete" -eq 1 ]
-  [ "$first_link" -eq 1 ]
+  # Two artifact_link calls now: the commit + the receipt.
+  [ "$first_link" -eq 2 ]
 
   run_hook "success-with-task.json"
   [ "$status" -eq 0 ]
 
   [ "$(grep -c 'task_complete NEW' "$HOOK_TEST_TMP/dossier.log")" -eq 1 ]
-  [ "$(grep -c 'artifact_link NEW' "$HOOK_TEST_TMP/dossier.log")" -eq 1 ]
+  [ "$(grep -c 'artifact_link NEW' "$HOOK_TEST_TMP/dossier.log")" -eq 2 ]
   [ "$(grep -c 'task_complete NOOP' "$HOOK_TEST_TMP/dossier.log")" -eq 1 ]
-  [ "$(grep -c 'artifact_link NOOP' "$HOOK_TEST_TMP/dossier.log")" -eq 1 ]
+  [ "$(grep -c 'artifact_link NOOP' "$HOOK_TEST_TMP/dossier.log")" -eq 2 ]
+}
+
+@test "receipt joins the verdict FK by head_sha when --match-head-commit is present" {
+  run_hook "success-with-verdict.json"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Auto-closed dossier task gh-pr-merge-hook on PR #42 merge"* ]]
+  # The command carries --match-head-commit cafebabe…, which the stub verdict's
+  # meta.head_sha matches, so the receipt links that verdict's art_ id.
+  grep -q -- "--kind receipt" "$HOOK_TEST_TMP/dossier.log"
+  grep -q -- "--meta verdict=art_VERDICT01" "$HOOK_TEST_TMP/dossier.log"
+  grep -q -- "--kind verdict" "$HOOK_TEST_TMP/dossier.log"
+  [[ "$output" == *"verdict art_VERDICT01"* ]]
 }

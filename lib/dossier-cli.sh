@@ -103,7 +103,9 @@ dossier_task_complete() {
   _dossier_run task_complete "${cmd[@]}" >/dev/null
 }
 
-# Usage: dossier_artifact_link <project> <task> <kind> <ref> [label] [actor]
+# Usage: dossier_artifact_link <project> <task> <kind> <ref> [label] [actor] [key=value...]
+# Trailing args (position 7+) are passed through as repeated `--meta key=value`
+# flags — this is how the substrate `verdict`/`receipt` meta is written.
 # Returns 0 on success (including dossier idempotent no-op). Non-zero on failure.
 dossier_artifact_link() {
   local project="$1"
@@ -112,8 +114,9 @@ dossier_artifact_link() {
   local ref="$4"
   local label="${5:-}"
   local actor="${6:-}"
+  local -a meta_pairs=( "${@:7}" )
   local -a cmd=( "$DOSSIER_BIN" )
-  local arg
+  local arg pair
 
   while IFS= read -r -d '' arg; do
     cmd+=( "$arg" )
@@ -128,8 +131,32 @@ dossier_artifact_link() {
   )
   [[ -n "$label" ]] && cmd+=( --label "$label" )
   [[ -n "$actor" ]] && cmd+=( --actor "$actor" )
+  for pair in "${meta_pairs[@]}"; do
+    [[ -n "$pair" ]] && cmd+=( --meta "$pair" )
+  done
 
   _dossier_run artifact_link "${cmd[@]}" >/dev/null
+}
+
+# Usage: dossier_artifact_list <project> [kind] [ref]
+# Prints matching artifacts as a JSON array on stdout (empty array if none).
+# Used by the merge hook to resolve a verdict's art_ id for a receipt FK.
+dossier_artifact_list() {
+  local project="$1"
+  local kind="${2:-}"
+  local ref="${3:-}"
+  local -a cmd=( "$DOSSIER_BIN" )
+  local arg
+
+  while IFS= read -r -d '' arg; do
+    cmd+=( "$arg" )
+  done < <(_dossier_corpus_args)
+
+  cmd+=( artifact_list --project "$project" )
+  [[ -n "$kind" ]] && cmd+=( --kind "$kind" )
+  [[ -n "$ref" ]] && cmd+=( --ref "$ref" )
+
+  _dossier_run artifact_list "${cmd[@]}"
 }
 
 # Usage: dossier_task_update <id> <note> [actor]

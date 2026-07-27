@@ -12,12 +12,18 @@ case "$*" in
   *"pr view 42"*"body"*)
     printf '%s' $'Summary\n\nCloses task/gh-pr-merge-hook\n'
     ;;
+  *"pr view 42"*"url"*)
+    printf '%s' "https://github.com/itsHabib/mcp-workstation/pull/42"
+    ;;
   # PR 43 (linked task via backtick form)
   *"pr view 43"*"mergeCommit"*)
     printf '%s' "feedfacefeedfacefeedfacefeedfacefeedface"
     ;;
   *"pr view 43"*"body"*)
     printf '%s' $'Summary\n\nCloses task `gh-pr-merge-hook`\n'
+    ;;
+  *"pr view 43"*"url"*)
+    printf '%s' "https://github.com/itsHabib/mcp-workstation/pull/43"
     ;;
   *"pr view 99"*"mergeCommit"*)
     printf '%s' "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
