@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "gate gate -repo itsHabib/mcp-workstation -pr 42 -grant grt_x -state /s"
+  },
+  "tool_response": {
+    "stdout": "{\"run\":\"run_testverdict01\",\"pr\":\"itsHabib/mcp-workstation#42\",\"decision\":\"pass\",\"tier\":\"T1\",\"outcome\":\"would_merge\",\"head_sha\":\"cafebabecafebabecafebabecafebabecafebabe\",\"grant\":\"grt_x\"}",
+    "stderr": "",
+    "exitCode": 0
+  }
+}

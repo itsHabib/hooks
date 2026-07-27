@@ -15,9 +15,15 @@ Hooks land one per PR with bats tests and an `examples/` settings snippet.
 
 ### `posttool-gh-pr-merge.sh`
 
-Runs on `PostToolUse` when the agent executes `gh pr merge`. If the merged PR body contains `Closes task/<slug>` (or `Closes task tsk_…`), the hook auto-completes the dossier task and links the merge commit. Include that line in PR bodies opened from worktrees.
+Runs on `PostToolUse` when the agent executes `gh pr merge`. If the merged PR body contains `Closes task/<slug>` (or `Closes task tsk_…`), the hook auto-completes the dossier task, links the merge commit, and records a State-substrate `receipt` artifact (`meta`: `event=merge`, `pr`, `merge_sha`, `head_sha`, and the authorizing `verdict` art id when one is found). Include that `Closes task` line in PR bodies opened from worktrees.
 
 **Limitation:** merges done in the GitHub web UI do not fire this hook — use `gh pr merge` from the agent session (or complete/link manually).
+
+### `posttool-gate-verdict.sh`
+
+Runs on `PostToolUse` when the agent executes `gate gate` and gate returns `decision: pass`. Records a State-substrate `verdict` artifact at decision time (`ref`: `gate://<repo>/pr/<n>/<run>`, `meta`: `source=gate`, `outcome`, `pr`, `head_sha`, `grant`, `tier`), anchored to the PR's `Closes task` linkage. This is the verdict half of the substrate-autowiring pair; the merge hook's `receipt` joins back to it on `head_sha`. escalate/block/refuse decisions are skipped.
+
+**Limitation:** only agent-run `gate gate` calls fire this — a `gate gate` run in a raw shell won't. The universal anchor for the verdict fact is gate itself; this hook is the local convenience path.
 
 ## Prerequisites
 
