@@ -145,7 +145,11 @@ if [[ "${1:-}" == "--no-timeout" ]]; then
 fi
 
 if command -v timeout >/dev/null 2>&1; then
-  timeout 5 "$0" --no-timeout "$@" || exit 0
+  # Invoke via `bash "$0"`, not `"$0"` directly, so the timed leg does not
+  # depend on the file's executable bit (a 100644 checkout would otherwise die
+  # on "Permission denied" and record nothing). The file is also committed
+  # 100755 for good measure.
+  timeout 5 bash "$0" --no-timeout "$@" || exit 0
 else
   _main "$@" || exit 0
 fi
