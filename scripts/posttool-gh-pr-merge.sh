@@ -143,6 +143,30 @@ _short_sha() {
   printf '%s' "${sha:0:7}"
 }
 
+# The authorized merge always carries `--match-head-commit <sha>` (the
+# pretool-guard rejects any merge without it), so the head gate judged is on
+# the command line. This is the join key to the verdict artifact.
+_extract_head_sha() {
+  local command="$1"
+  if [[ "$command" =~ --match-head-commit[[:space:]=]+([0-9a-fA-F]+) ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
+# Resolve the authorizing verdict's art_ id by matching its meta.head_sha to
+# the head sha on the merge command. Best-effort: prints nothing if no verdict
+# row exists (e.g. the verdict emitter has not run for this merge) — the
+# receipt still writes and stays joinable on head_sha later.
+_lookup_verdict_id() {
+  local project="$1"
+  local head_sha="$2"
+  [[ -z "$head_sha" ]] && return 0
+  dossier_artifact_list "$project" "verdict" 2>/dev/null \
+    | jq -r --arg h "$head_sha" \
+        'map(select(.meta.head_sha == $h)) | (last // {}) | .id // empty' \
+        2>/dev/null
+}
+
 _main() {
   local event tool_name command output exit_code pr merge_sha project_hint
   local lookup project_slug task_id task_slug note label short_sha
@@ -208,8 +232,46 @@ _main() {
     _soft_fail "artifact_link failed for PR #$pr"
   fi
 
-  printf 'Auto-closed dossier task %s on PR #%s merge (sha: %s).\nCommit linked.\n' \
-    "$task_slug" "$pr" "$short_sha"
+  # Substrate receipt — the merge event, driver-agnostic (fires for any executor
+  # that clears gate + the guard). The FK to the authorizing verdict is joined
+  # on head_sha; if no verdict row exists yet the receipt still writes and stays
+  # joinable later (best-effort, never blocks — this is a post-merge hook).
+  local head_sha pr_url verdict_id receipt_linked=""
+  local -a receipt_meta
+  head_sha="$(_extract_head_sha "$command")"
+  # `gh pr view --json url` already returns the canonical PR URL (lowercase
+  # host, owner/repo in their real casing) — the receipt ref convention. Do
+  # NOT lowercase it wholesale: that would mangle a mixed-case owner/repo.
+  pr_url="$(gh pr view "$pr" --json url -q '.url' 2>/dev/null)"
+  if [[ -n "$pr_url" ]]; then
+    verdict_id="$(_lookup_verdict_id "$project_slug" "$head_sha")"
+    receipt_meta=( "event=merge" "pr=$pr" "merge_sha=$merge_sha" )
+    # Always record head_sha when known — it is the join key back to the
+    # verdict. A squash/rebase merge_sha differs from head_sha, so without it a
+    # receipt written before its verdict lands (P2 not run yet) can never be
+    # joined; the FK id is the fast path, head_sha is the durable fallback.
+    [[ -n "$head_sha" ]] && receipt_meta+=( "head_sha=$head_sha" )
+    [[ -n "$verdict_id" ]] && receipt_meta+=( "verdict=$verdict_id" )
+    if dossier_artifact_link "$project_slug" "$task_id" "receipt" "$pr_url" \
+        "merged PR #$pr" "hook:gh-pr-merge" "${receipt_meta[@]}"; then
+      receipt_linked=1
+    else
+      _warn "receipt link failed for PR #$pr"
+    fi
+  else
+    _warn "could not resolve canonical PR URL for PR #$pr receipt"
+  fi
+
+  # Report only what actually happened — the commit always linked (or we
+  # soft-failed above); the receipt is conditional.
+  if [[ -n "$receipt_linked" ]]; then
+    printf 'Auto-closed dossier task %s on PR #%s merge (sha: %s).\nCommit + receipt linked%s.\n' \
+      "$task_slug" "$pr" "$short_sha" \
+      "$([[ -n "${verdict_id:-}" ]] && printf ' (verdict %s)' "$verdict_id")"
+  else
+    printf 'Auto-closed dossier task %s on PR #%s merge (sha: %s).\nCommit linked; receipt link failed (see warnings).\n' \
+      "$task_slug" "$pr" "$short_sha"
+  fi
 }
 
 if [[ "${1:-}" == "--no-timeout" ]]; then

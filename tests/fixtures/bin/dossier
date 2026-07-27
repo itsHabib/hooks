@@ -55,6 +55,34 @@ EOF
   *artifact_link*)
     _record_call artifact_link "$*"
     ;;
+  *artifact_list*)
+    # The merge hook resolves a receipt's verdict FK by listing verdicts and
+    # matching meta.head_sha. Return one verdict row whose head_sha matches the
+    # success-with-verdict fixture's --match-head-commit; the hook's jq filter
+    # drops it for any other head sha (non-matching merges get no FK).
+    if [[ "$*" == *"--kind verdict"* ]]; then
+      cat <<'EOF'
+[
+  {
+    "id": "art_VERDICT01",
+    "project": "prj_FIXTURE01HOOK1FIXTURE01HK",
+    "kind": "verdict",
+    "ref": "gate://mcp-workstation/pr/42/run_x",
+    "meta": {
+      "source": "gate",
+      "outcome": "pass",
+      "pr": "42",
+      "head_sha": "cafebabecafebabecafebabecafebabecafebabe",
+      "grant": "grt_x",
+      "tier": "T1"
+    }
+  }
+]
+EOF
+    else
+      printf '[]\n'
+    fi
+    ;;
   *)
     echo "unexpected dossier invocation: $*" >&2
     exit 1

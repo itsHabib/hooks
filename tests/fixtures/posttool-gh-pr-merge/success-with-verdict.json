@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "gh pr merge 42 -R itsHabib/mcp-workstation --squash --delete-branch --match-head-commit cafebabecafebabecafebabecafebabecafebabe"
+  },
+  "tool_response": {
+    "stdout": "✓ Merged pull request #42 (squash)\n",
+    "stderr": "",
+    "exitCode": 0
+  }
+}
