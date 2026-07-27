@@ -119,6 +119,20 @@ run_hook() {
   # meta.head_sha matches, so the receipt links that verdict's art_ id.
   grep -q -- "--kind receipt" "$HOOK_TEST_TMP/dossier.log"
   grep -q -- "--meta verdict=art_VERDICT01" "$HOOK_TEST_TMP/dossier.log"
+  grep -q -- "--meta head_sha=cafebabecafebabecafebabecafebabecafebabe" "$HOOK_TEST_TMP/dossier.log"
   grep -q -- "--kind verdict" "$HOOK_TEST_TMP/dossier.log"
   [[ "$output" == *"verdict art_VERDICT01"* ]]
+}
+
+@test "receipt preserves head_sha even when no verdict exists yet (joinable later)" {
+  run_hook "success-headsha-no-verdict.json"
+
+  [ "$status" -eq 0 ]
+  grep -q -- "--kind receipt" "$HOOK_TEST_TMP/dossier.log"
+  # head_sha is recorded so the verdict can be joined once it lands...
+  grep -q -- "--meta head_sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" "$HOOK_TEST_TMP/dossier.log"
+  # ...but no verdict matched this head yet, so no FK is fabricated.
+  ! grep -q -- "--meta verdict=" "$HOOK_TEST_TMP/dossier.log"
+  [[ "$output" == *"Commit + receipt linked"* ]]
+  [[ "$output" != *"(verdict "* ]]
 }

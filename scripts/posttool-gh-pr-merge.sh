@@ -236,7 +236,7 @@ _main() {
   # that clears gate + the guard). The FK to the authorizing verdict is joined
   # on head_sha; if no verdict row exists yet the receipt still writes and stays
   # joinable later (best-effort, never blocks — this is a post-merge hook).
-  local head_sha pr_url verdict_id
+  local head_sha pr_url verdict_id receipt_linked=""
   local -a receipt_meta
   head_sha="$(_extract_head_sha "$command")"
   # `gh pr view --json url` already returns the canonical PR URL (lowercase
@@ -246,18 +246,32 @@ _main() {
   if [[ -n "$pr_url" ]]; then
     verdict_id="$(_lookup_verdict_id "$project_slug" "$head_sha")"
     receipt_meta=( "event=merge" "pr=$pr" "merge_sha=$merge_sha" )
+    # Always record head_sha when known — it is the join key back to the
+    # verdict. A squash/rebase merge_sha differs from head_sha, so without it a
+    # receipt written before its verdict lands (P2 not run yet) can never be
+    # joined; the FK id is the fast path, head_sha is the durable fallback.
+    [[ -n "$head_sha" ]] && receipt_meta+=( "head_sha=$head_sha" )
     [[ -n "$verdict_id" ]] && receipt_meta+=( "verdict=$verdict_id" )
-    if ! dossier_artifact_link "$project_slug" "$task_id" "receipt" "$pr_url" \
+    if dossier_artifact_link "$project_slug" "$task_id" "receipt" "$pr_url" \
         "merged PR #$pr" "hook:gh-pr-merge" "${receipt_meta[@]}"; then
+      receipt_linked=1
+    else
       _warn "receipt link failed for PR #$pr"
     fi
   else
     _warn "could not resolve canonical PR URL for PR #$pr receipt"
   fi
 
-  printf 'Auto-closed dossier task %s on PR #%s merge (sha: %s).\nCommit + receipt linked%s.\n' \
-    "$task_slug" "$pr" "$short_sha" \
-    "$([[ -n "${verdict_id:-}" ]] && printf ' (verdict %s)' "$verdict_id")"
+  # Report only what actually happened — the commit always linked (or we
+  # soft-failed above); the receipt is conditional.
+  if [[ -n "$receipt_linked" ]]; then
+    printf 'Auto-closed dossier task %s on PR #%s merge (sha: %s).\nCommit + receipt linked%s.\n' \
+      "$task_slug" "$pr" "$short_sha" \
+      "$([[ -n "${verdict_id:-}" ]] && printf ' (verdict %s)' "$verdict_id")"
+  else
+    printf 'Auto-closed dossier task %s on PR #%s merge (sha: %s).\nCommit linked; receipt link failed (see warnings).\n' \
+      "$task_slug" "$pr" "$short_sha"
+  fi
 }
 
 if [[ "${1:-}" == "--no-timeout" ]]; then
