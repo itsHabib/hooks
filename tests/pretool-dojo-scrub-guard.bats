@@ -7,7 +7,7 @@ bats_require_minimum_version 1.5.0
 setup() {
   export HOME="$BATS_TEST_TMPDIR/home"
   mkdir -p "$HOME/.claude/dojo"
-  guard="$BATS_TEST_DIRNAME/../scripts/pretool_dojo_scrub_guard.py"
+  guard="$BATS_TEST_DIRNAME/../scripts/pretool-dojo-scrub-guard.sh"
 }
 
 run_guard() {
@@ -16,11 +16,17 @@ run_guard() {
   local payload
   payload=$(jq -n --arg p "$file_path" --arg c "$content" \
     '{tool_input: {file_path: $p, content: $c}}')
-  run --separate-stderr python3 "$guard" <<<"$payload"
+  run --separate-stderr bash "$guard" <<<"$payload"
 }
 
 @test "writes outside shared dojo lessons pass without a marker file" {
   run_guard "$HOME/dev/repo/notes.md" "customer-internal"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "lookalike repo path is not treated as the shared home directory" {
+  run_guard "$HOME/dev/repo/notes/.claude/dojo/lessons/example.md" "customer-internal"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
@@ -39,7 +45,9 @@ run_guard() {
   run_guard "$HOME/.claude/dojo/lessons/example.md" "Customer-Internal project"
   [ "$status" -eq 0 ]
   [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
-  [[ "$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$output")" == *"sensitive marker"* ]]
+  reason=$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$output")
+  [[ "$reason" == *"sensitive local marker"* ]]
+  [[ "$reason" != *"customer-internal"* ]]
 }
 
 @test "clean shared lesson content passes" {
