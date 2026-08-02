@@ -33,17 +33,20 @@ content=$(jq -r '[.tool_input.content, .tool_input.new_string] | map(select(type
   <<<"$payload" 2>/dev/null) || exit 0
 
 while IFS= read -r line || [[ -n $line ]]; do
+  line=${line%$'\r'}
   [[ -z $line || $line == \#* || $line != /*/* ]] && continue
   body=${line#/}
   pattern=${body%/*}
   flags=${line##*/}
-  [[ $flags =~ ^i?$ ]] || continue
+  [[ -n $pattern && $flags =~ ^i?$ ]] || continue
 
   if [[ $flags == i ]]; then
     shopt -s nocasematch
   fi
-  [[ $content =~ $pattern ]]
-  matched=$?
+  matched=1
+  if ( [[ $content =~ $pattern ]] ) 2>/dev/null; then
+    matched=0
+  fi
   shopt -u nocasematch
   if [[ $matched -ne 0 ]]; then
     continue

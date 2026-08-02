@@ -23,12 +23,14 @@ run_guard() {
   run_guard "$HOME/dev/repo/notes.md" "customer-internal"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
+  [ -z "$stderr" ]
 }
 
 @test "lookalike repo path is not treated as the shared home directory" {
   run_guard "$HOME/dev/repo/notes/.claude/dojo/lessons/example.md" "customer-internal"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
+  [ -z "$stderr" ]
 }
 
 @test "shared dojo lessons fail closed when the marker file is missing" {
@@ -37,7 +39,8 @@ run_guard() {
   decision=$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")
   reason=$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$output")
   [ "$decision" = "deny" ]
-  [[ "$reason" == *"cannot read marker list"* ]]
+  [[ "$reason" == *"cannot read the local marker list"* ]]
+  [ -z "$stderr" ]
 }
 
 @test "matching sensitive content is denied" {
@@ -48,6 +51,7 @@ run_guard() {
   reason=$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$output")
   [[ "$reason" == *"sensitive local marker"* ]]
   [[ "$reason" != *"customer-internal"* ]]
+  [ -z "$stderr" ]
 }
 
 @test "clean shared lesson content passes" {
@@ -55,4 +59,29 @@ run_guard() {
   run_guard "$HOME/.claude/dojo/lessons/example.md" "Use an early return to keep line of sight."
   [ "$status" -eq 0 ]
   [ -z "$output" ]
+  [ -z "$stderr" ]
+}
+
+@test "empty marker patterns are ignored" {
+  printf '//i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_guard "$HOME/.claude/dojo/lessons/example.md" "generic lesson"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ -z "$stderr" ]
+}
+
+@test "invalid marker regexes are ignored without leaking diagnostics" {
+  printf '/customer-[internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_guard "$HOME/.claude/dojo/lessons/example.md" "customer-internal"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ -z "$stderr" ]
+}
+
+@test "CRLF marker files are supported" {
+  printf '/customer-internal/i\r\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_guard "$HOME/.claude/dojo/lessons/example.md" "Customer-Internal project"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
+  [ -z "$stderr" ]
 }
