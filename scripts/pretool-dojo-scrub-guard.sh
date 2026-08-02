@@ -9,17 +9,20 @@ command -v jq >/dev/null 2>&1 || exit 0
 payload=$(cat) || exit 0
 file_path=$(jq -er '.tool_input.file_path // ""' <<<"$payload" 2>/dev/null) || exit 0
 
-normalize_path() {
+canonicalize_path() {
   local path=${1//\\//}
   if [[ $path =~ ^([A-Za-z]):(/.*)$ ]]; then
     path="/${BASH_REMATCH[1],,}${BASH_REMATCH[2]}"
   fi
-  printf '%s' "${path,,}"
+  printf '%s' "$path"
 }
 
-normalized_path=$(normalize_path "$file_path")
-lessons_root=$(normalize_path "$HOME/.claude/dojo/lessons/")
+canonical_path=$(canonicalize_path "$file_path")
+canonical_lessons_root=$(canonicalize_path "$HOME/.claude/dojo/lessons/")
+normalized_path=${canonical_path,,}
+lessons_root=${canonical_lessons_root,,}
 [[ $normalized_path == "$lessons_root"* ]] || exit 0
+relative_path=${canonical_path:${#canonical_lessons_root}}
 
 markers_path="$HOME/.claude/dojo/scrub-markers.txt"
 if [[ ! -r $markers_path ]]; then
@@ -31,6 +34,7 @@ fi
 
 content=$(jq -r '[.tool_input.content, .tool_input.new_string] | map(select(type == "string")) | join("\n")' \
   <<<"$payload" 2>/dev/null) || exit 0
+scan_text="$relative_path"$'\n'"$content"
 
 while IFS= read -r line || [[ -n $line ]]; do
   line=${line%$'\r'}
@@ -44,7 +48,7 @@ while IFS= read -r line || [[ -n $line ]]; do
     shopt -s nocasematch
   fi
   matched=1
-  if ( [[ $content =~ $pattern ]] ) 2>/dev/null; then
+  if ( [[ $scan_text =~ $pattern ]] ) 2>/dev/null; then
     matched=0
   fi
   shopt -u nocasematch

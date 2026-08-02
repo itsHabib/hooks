@@ -54,6 +54,22 @@ run_guard() {
   [ -z "$stderr" ]
 }
 
+@test "matching sensitive lesson filenames are denied without scanning the home prefix" {
+  export HOME="$BATS_TEST_TMPDIR/customer-internal-home"
+  mkdir -p "$HOME/.claude/dojo"
+  printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+
+  run_guard "$HOME/.claude/dojo/lessons/customer-internal.md" "Generic lesson"
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
+  [ -z "$stderr" ]
+
+  run_guard "$HOME/.claude/dojo/lessons/generic.md" "Generic lesson"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ -z "$stderr" ]
+}
+
 @test "clean shared lesson content passes" {
   printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
   run_guard "$HOME/.claude/dojo/lessons/example.md" "Use an early return to keep line of sight."
