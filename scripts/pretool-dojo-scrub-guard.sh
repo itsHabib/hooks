@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+# PreToolUse guard for the shared ~/.claude/dojo/lessons directory. Denylist
+# patterns stay local in ~/.claude/dojo/scrub-markers.txt and are never echoed
+# back into the agent transcript.
+
+command -v jq >/dev/null 2>&1 || exit 0
+
+payload=$(cat) || exit 0
+file_path=$(jq -er '.tool_input.file_path // ""' <<<"$payload" 2>/dev/null) || exit 0
+
+canonicalize_path() {
+  local path=${1//\\//}
+  if [[ $path =~ ^([A-Za-z]):(/.*)$ ]]; then
+    path="/${BASH_REMATCH[1],,}${BASH_REMATCH[2]}"
+  fi
+  printf '%s' "$path"
+}
+
+canonical_path=$(canonicalize_path "$file_path")
+canonical_lessons_root=$(canonicalize_path "$HOME/.claude/dojo/lessons/")
+normalized_path=${canonical_path,,}
+lessons_root=${canonical_lessons_root,,}
+[[ $normalized_path == "$lessons_root"* ]] || exit 0
+relative_path=${canonical_path:${#canonical_lessons_root}}
+
+markers_path="$HOME/.claude/dojo/scrub-markers.txt"
+if [[ ! -r $markers_path ]]; then
+  jq -nc --arg reason \
+    "dojo scrub-guard: cannot read the local marker list; refusing writes to the shared lessons directory until it exists." \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
+  exit 0
+fi
+
+content=$(jq -r '[.tool_input.content, .tool_input.new_string] | map(select(type == "string")) | join("\n")' \
+  <<<"$payload" 2>/dev/null) || exit 0
+scan_text="$relative_path"$'\n'"$content"
+
+while IFS= read -r line || [[ -n $line ]]; do
+  line=${line%$'\r'}
+  [[ -z $line || $line == \#* || $line != /*/* ]] && continue
+  body=${line#/}
+  pattern=${body%/*}
+  flags=${line##*/}
+  [[ -n $pattern && $flags =~ ^i?$ ]] || continue
+
+  if [[ $flags == i ]]; then
+    shopt -s nocasematch
+  fi
+  matched=1
+  if ( [[ $scan_text =~ $pattern ]] ) 2>/dev/null; then
+    matched=0
+  fi
+  shopt -u nocasematch
+  if [[ $matched -ne 0 ]]; then
+    continue
+  fi
+
+  jq -nc --arg reason \
+    "dojo scrub-guard: content matches a sensitive local marker. Scrub it, or keep the repo-specific lesson in that repository's docs/dojo/ directory." \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
+  exit 0
+done <"$markers_path"
+
+exit 0
