@@ -21,7 +21,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write # Claude publishes its review as a formal review
-      issues: write # Claude posts comments back on tagged issues
+      issues: read # unchanged: nothing here runs an issue-write command
       id-token: write
       actions: read
     steps:
@@ -59,6 +59,26 @@ jobs:
           # Ported from itsHabib/workbench#199. Note this cannot be exercised
           # from a PR branch: issue_comment always runs the workflow file from
           # the default branch, so it takes effect only once merged.
+          #
+          # The allowlist is NOT the enforcement boundary for "never approve".
+          # `Bash(gh pr review:*)` is a prefix wildcard — it admits --approve
+          # exactly as readily as --comment, and the flag sits after the PR
+          # number, so no prefix pattern can exclude it. Only the appended
+          # prompt sentence stops an approval, and a review reads untrusted
+          # input (PR body, diff) with that instruction in context.
+          #
+          # Accepted deliberately, because an approval buys nothing here: this
+          # repo has no rulesets, so no required-approval rule exists for a bot
+          # approval to satisfy, and gate's classifyPanel counts COMMENTED,
+          # APPROVED and CHANGES_REQUESTED identically — an approval earns no
+          # more panel credit than a comment. Revisit if this repo ever gains
+          # branch protection requiring approving reviews; at that point the
+          # gap becomes real and needs a tool-level control, not a sentence.
+          #
+          # --allowed-tools here is MERGED with the action's own options, not
+          # a replacement: base-action/src/parse-sdk-options.ts builds
+          # `[...new Set([...extraArgsAllowedTools, ...directAllowedTools])]`.
+          # Adding this entry cannot strip the action's baseline tooling.
           claude_args: >-
             --allowed-tools "Bash(gh pr review:*)"
             --append-system-prompt
