@@ -1,7 +1,7 @@
 # custody — settings.json permission staging
 
 The pattern: **deny the raw thing, allow the brokered thing.** Same shape as
-gate (gate's read verbs are allowlisted while `pers/gate/state` and bare
+gate (gate's read verbs are allowlisted while `gate/state` and bare
 merges are guarded). An allow rule is safe in proportion to the gates behind
 it — vendor calls become allowlistable *because* they go through the proxy.
 

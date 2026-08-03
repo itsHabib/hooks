@@ -183,3 +183,54 @@ run_guard() {
   run_guard 'gh pr create --title fix --body "this reverts the bad merge from main"'
   [ "$status" -eq 0 ]
 }
+
+# --- gate substrate: anchored on the `gate/` parent, not on a home ---
+#
+# This rule was pinned to `pers/gate/state` while the substrate had already
+# moved to ~/dev/gate/state, so it protected nothing for the entire time it
+# read as protective. The tests below pin BOTH homes: the rule may not be
+# re-narrowed to whichever path happens to be current.
+
+@test "gate state: the live ~/dev/gate/state is blocked" {
+  run_guard "rm -rf ~/dev/gate/state"
+  [ "$status" -eq 2 ]
+  [[ "$stderr" == *"append-only"* ]]
+  [[ "$stderr" == *"Remedy:"* ]]
+}
+
+@test "gate state: the legacy ~/pers/gate/state stays blocked" {
+  run_guard "rm -rf ~/pers/gate/state"
+  [ "$status" -eq 2 ]
+}
+
+@test "gate state: the hash-chained log itself is blocked" {
+  run_guard "rm ~/dev/gate/state/log.jsonl"
+  [ "$status" -eq 2 ]
+}
+
+@test "gate state: mv and cp are blocked, not only rm" {
+  run_guard "mv ~/dev/gate/state /tmp/stash"
+  [ "$status" -eq 2 ]
+  run_guard "cp -r ~/dev/gate/state /tmp/stash"
+  [ "$status" -eq 2 ]
+}
+
+@test "gate keys: the signing keys are blocked" {
+  run_guard "rm -rf ~/dev/gate/keys"
+  [ "$status" -eq 2 ]
+}
+
+@test "gate state: reading the audit log passes" {
+  run_guard "grep run_abc ~/dev/gate/state/log.jsonl"
+  [ "$status" -eq 0 ]
+}
+
+@test "false positive: gate/internal/state is source, not substrate" {
+  run_guard "rm -rf ~/dev/gate/internal/state"
+  [ "$status" -eq 0 ]
+}
+
+@test "false positive: a sibling named state_backup is not the substrate" {
+  run_guard "rm -rf ~/dev/gate/state_backup"
+  [ "$status" -eq 0 ]
+}

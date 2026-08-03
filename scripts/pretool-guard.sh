@@ -39,7 +39,7 @@ fi
 flag='([[:space:]]+-[^[:space:]]*([[:space:]]+[^-[:space:]][^[:space:]]*)?)*'
 if printf '%s' "$cmd" | grep -qE "(^|[^[:alnum:]._-])gh${flag}[[:space:]]+pr${flag}[[:space:]]+merge\b" && ! printf '%s' "$cmd" | grep -q -- '--match-head-commit'; then
   deny "bare gh pr merge bypasses gate (no grant, verdict, or artifact)" \
-       "run: gate gate -repo <owner/repo> -pr <n> -grant <grt_...> -state ~/pers/gate/state, then use its emitted merge command"
+       "run: gate gate -repo <owner/repo> -pr <n> -grant <grt_...>, then use its emitted merge command"
 fi
 
 # repo deletion / visibility change (same intervening-flag tolerance)
@@ -61,9 +61,16 @@ if printf '%s' "$cmd" | grep -qiE '\b(cat|cp|type|less|head|tail|Get-Content|Cop
        "reference keys via ssh -i; never read or copy key files"
 fi
 
-# gate state (audit chain + signing keys) — only the gate binary writes here
-if printf '%s' "$cmd" | grep -qE '(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*pers[/\\]gate[/\\]state'; then
-  deny "gate state is append-only and owned by the gate binary" \
+# gate state (audit chain) + signing keys — only the gate binary writes here.
+# Anchored on the `gate/` parent, not on a specific home (the state dir has
+# lived at ~/pers/gate and now ~/dev/gate; pinning either one silently stops
+# protecting the other — which is exactly what happened). Matching the parent
+# is safe: no source tree in the portfolio has a `gate/state` or `gate/keys`
+# path, and `gate/internal/state` does not match (the segments aren't
+# adjacent). \b keeps sibling names like state_backup out — a miss there is a
+# false negative, never a false positive.
+if printf '%s' "$cmd" | grep -qE '(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*gate[/\\](state|keys)\b'; then
+  deny "gate state/keys are append-only and owned by the gate binary" \
        "use gate subcommands; never edit state files directly"
 fi
 
