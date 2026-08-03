@@ -234,3 +234,12 @@ run_guard() {
   run_guard "rm -rf ~/dev/gate/state_backup"
   [ "$status" -eq 0 ]
 }
+
+@test "false positive: a word merely ending in gate is not the substrate" {
+  # Without a leading \b the rule substring-matches any word ending in "gate" —
+  # aggregate/state, delegate/keys — and denies unrelated commands.
+  run_guard "rm -rf ~/repos/aggregate/state"
+  [ "$status" -eq 0 ]
+  run_guard "rm -rf ~/repos/delegate/keys"
+  [ "$status" -eq 0 ]
+}

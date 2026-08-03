@@ -67,9 +67,11 @@ fi
 # protecting the other — which is exactly what happened). Matching the parent
 # is safe: no source tree in the portfolio has a `gate/state` or `gate/keys`
 # path, and `gate/internal/state` does not match (the segments aren't
-# adjacent). \b keeps sibling names like state_backup out — a miss there is a
-# false negative, never a false positive.
-if printf '%s' "$cmd" | grep -qE '(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*gate[/\\](state|keys)\b'; then
+# adjacent). \b on BOTH sides of gate: the trailing one keeps sibling names
+# like state_backup out, and the leading one keeps any word merely ending in
+# "gate" — aggregate/state, delegate/keys — from tripping the rule. A miss on
+# either is a false negative, never a false positive.
+if printf '%s' "$cmd" | grep -qE '(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*\bgate[/\\](state|keys)\b'; then
   deny "gate state/keys are append-only and owned by the gate binary" \
        "use gate subcommands; never edit state files directly"
 fi
