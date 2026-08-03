@@ -43,7 +43,7 @@ These MCPs, planes, and skills are available in any agent session on this machin
 - **playwright** — browser automation when a task needs a real DOM.
 
 **Planes (workbench tenants — CLIs composed via exit codes + JSONL, not MCPs; `itsHabib/workbench` `cmd/<tool>`):**
-- **gate** — the flagship: authorization. Evaluates the *exact* PR head against an operator-minted grant + the escalate-only verifier ladder; hash-chained audit log; exit 0 pass / 1 blocked / 2 parked / 3 refused / 4 error. Findings ≠ authorization; gate is the merge boundary. State + keys stay `~/pers/gate`.
+- **gate** — the flagship: authorization. Evaluates the *exact* PR head against an operator-minted grant + the escalate-only verifier ladder; hash-chained audit log; exit 0 pass / 1 blocked / 2 parked / 3 refused / 4 error. Findings ≠ authorization; gate is the merge boundary. State + keys stay `~/dev/gate`.
 - **flare** — notification: best-effort escalation sink over authoritative receipts → its own Slack app/channel. Pure sink; never gates; not built on huddle.
 - **console** — read-only local web view of gate's inbox (parked runs + grant ledger); shells the gate binary, owns no authoritative state.
 - **escalate** — the agent→human→agent back-channel: ingests the human's decision for a parked escalation and drives `gate resolve`.
