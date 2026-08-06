@@ -2,9 +2,23 @@
 # PostToolUse hook: auto artifact_link on gh pr create when PR body links a dossier task.
 set -uo pipefail
 
+# Fast path first — see the extended rationale in posttool-gate-verdict.sh.
+# This hook fires on every Bash tool call but acts only on `gh pr create`, so
+# the common case must reach its exit without forking: read with the builtin,
+# match on the raw event text, and only then pay for lib sourcing and jq.
+# Substring matching here only widens the candidate set; the authoritative
+# parse below still decides.
+IFS= read -r -d '' _event || true
+[ -n "$_event" ] || exit 0
+[[ $_event == *'"tool_name"'*'"Bash"'* ]] || exit 0
+[[ $_event == *create* ]] || exit 0
+
 HOOK_NAME="posttool-gh-pr-create"
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$HOOK_DIR/.." && pwd)"
+# Pure-expansion path derivation; see posttool-gate-verdict.sh for why this
+# appends `/..` instead of stripping a second path component.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[ "$HOOK_DIR" = "${BASH_SOURCE[0]}" ] && HOOK_DIR="."
+ROOT_DIR="$HOOK_DIR/.."
 
 # shellcheck source=lib/dossier-cli.sh
 source "$ROOT_DIR/lib/dossier-cli.sh"
@@ -21,16 +35,14 @@ _soft_fail() {
 }
 
 _read_event() {
-  local event=""
-  event="$(cat)"
-  if [[ -z "$event" ]]; then
-    exit 0
-  fi
+  # stdin was already drained by the fast-path read at the top; validate that
+  # buffer instead of re-reading a closed pipe.
+  #
   # Validate JSON upfront so malformed/truncated payloads exit clean (silent)
   # rather than cascading `jq: parse error` to stderr through every later
   # read. Mirrors the same guard in the ship hooks.
-  jq -e '.' <<<"$event" >/dev/null 2>&1 || exit 0
-  printf '%s' "$event"
+  jq -e '.' <<<"$_event" >/dev/null 2>&1 || exit 0
+  printf '%s' "$_event"
 }
 
 _tool_command() {
@@ -227,7 +239,14 @@ if [[ "${1:-}" == "--no-timeout" ]]; then
 fi
 
 if command -v timeout >/dev/null 2>&1; then
-  timeout 5 "$0" --no-timeout "$@" || exit 0
+  # Bounds the `gh` calls in _main. Reached only after the fast-path bail-out
+  # above, so the common no-op path never pays this second bash startup.
+  # stdin is already drained, so hand the event to the timed leg explicitly.
+  #
+  # Invoke via `bash "$0"` rather than "$0" so the timed leg does not depend on
+  # the file's executable bit (a 100644 checkout would die on "Permission
+  # denied"), matching posttool-gate-verdict.sh.
+  timeout 5 bash "$0" --no-timeout "$@" <<<"$_event" || exit 0
 else
   _main "$@" || exit 0
 fi
