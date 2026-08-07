@@ -40,7 +40,7 @@ deny() {
 # force push (--force-with-lease is allowed). Subcommands may be separated
 # from the binary by global options (git -C /repo push ...), and a +refspec
 # (git push origin +HEAD:main) forces without any flag — match both.
-re='\bgit\b[^|;&]*\bpush\b[^|;&]*( --force([^-]|$)|( |=)-f( |$)| \+[^ ]+)'
+re='(^|[^[:alnum:]_])git[^[:alnum:]_]([^|;&]*[^[:alnum:]_])?push([^[:alnum:]_][^|;&]*)?( --force([^-]|$)|( |=)-f( |$)| \+[^ ]+)'
 if [[ $cmd =~ $re ]]; then
   deny "force push rewrites shared history" \
        "use --force-with-lease, or ask the operator to run it manually"
@@ -55,18 +55,18 @@ fi
 # `gh` is not a match), and requiring `merge` right after the pr subcommand
 # (modulo flags) keeps `gh pr create --body "...merge..."` clean.
 flag='([[:space:]]+-[^[:space:]]*([[:space:]]+[^-[:space:]][^[:space:]]*)?)*'
-re="(^|[^[:alnum:]._-])gh${flag}[[:space:]]+pr${flag}[[:space:]]+merge\b"
+re="(^|[^[:alnum:]._-])gh${flag}[[:space:]]+pr${flag}[[:space:]]+merge([^[:alnum:]_]|$)"
 if [[ $cmd =~ $re ]] && [[ $cmd != *--match-head-commit* ]]; then
   deny "bare gh pr merge bypasses gate (no grant, verdict, or artifact)" \
        "run: gate gate -repo <owner/repo> -pr <n> -grant <grt_...>, then use its emitted merge command"
 fi
 
 # repo deletion / visibility change (same intervening-flag tolerance)
-re='\bgh\b[^|;&]*\brepo\b[^|;&]*\bdelete\b'
+re='(^|[^[:alnum:]_])gh[^[:alnum:]_]([^|;&]*[^[:alnum:]_])?repo[^[:alnum:]_]([^|;&]*[^[:alnum:]_])?delete([^[:alnum:]_]|$)'
 if [[ $cmd =~ $re ]]; then
   deny "repo deletion is irreversible" "operator runs this by hand if truly intended"
 fi
-re='\bgh\b[^|;&]*\brepo\b[^|;&]*\bedit\b[^|;&]*--visibility'
+re='(^|[^[:alnum:]_])gh[^[:alnum:]_]([^|;&]*[^[:alnum:]_])?repo[^[:alnum:]_]([^|;&]*[^[:alnum:]_])?edit([^[:alnum:]_][^|;&]*)?--visibility'
 if [[ $cmd =~ $re ]]; then
   deny "repo visibility changes are an operator decision" \
        "surface the request; operator flips visibility manually"
@@ -82,7 +82,7 @@ fi
 # and .KEYS is .keys. Scoped with shopt so it applies only to these rules.
 shopt -s nocasematch
 
-re='\b(cat|cp|type|less|head|tail|Get-Content|Copy-Item)\b[^|;&]*[ /\]\.ssh[/\]id_[a-z0-9_]+([^.]|$)'
+re='(^|[^[:alnum:]_])(cat|cp|type|less|head|tail|Get-Content|Copy-Item)([^[:alnum:]_][^|;&]*)?[ /\]\.ssh[/\]id_[a-z0-9_]+([^.]|$)'
 if [[ $cmd =~ $re ]]; then
   shopt -u nocasematch
   deny "private ssh keys are off limits (using ssh itself is fine)" \
@@ -97,11 +97,11 @@ shopt -u nocasematch
 # protecting the other — which is exactly what happened). Matching the parent
 # is safe: no source tree in the portfolio has a `gate/state` or `gate/keys`
 # path, and `gate/internal/state` does not match (the segments aren't
-# adjacent). \b on BOTH sides of gate: the trailing one keeps sibling names
+# adjacent). Boundaries on BOTH sides of gate: the trailing one keeps sibling names
 # like state_backup out, and the leading one keeps any word merely ending in
 # "gate" — aggregate/state, delegate/keys — from tripping the rule. A miss on
 # either is a false negative, never a false positive.
-re='(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*\bgate[/\](state|keys)\b'
+re='(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
 if [[ $cmd =~ $re ]]; then
   deny "gate state/keys are append-only and owned by the gate binary" \
        "use gate subcommands; never edit state files directly"
@@ -127,7 +127,12 @@ shopt -s nocasematch
 # so prose that merely names the verb (git commit -m "document custody
 # grant", rg "custody keys" docs) doesn't trip it. Wrapper indirection
 # (sudo/env, bash -c) is out of a text regex's reach, same as env-indirection.
-re='(^|[|&;`(])[[:space:]]*([^[:space:];|&`]*[/\])?custody(\.exe)?[[:space:]]+(grant|keys)\b'
+# Newline is a command boundary too: `=~` anchors ^ to the start of the WHOLE
+# string (the grep this replaced evaluated each line separately), so without
+# it in the class, `cd /repo<newline>custody grant ...` would sit in command
+# position and pass.
+nl=$'\n'
+re="(^|[|&;\`(${nl}])[[:space:]]*([^[:space:];|&\`]*[/\\])?custody(\.exe)?[[:space:]]+(grant|keys)([^[:alnum:]_]|$)"
 if [[ $norm =~ $re ]]; then
   shopt -u nocasematch
   deny "custody grant/keys are operator-only (mint authority + secret entry)" \
@@ -137,7 +142,7 @@ fi
 # custody state (mint key, grant records, audit log) — only the custody
 # binary touches it. Match the path token wherever it appears (path-joined,
 # space-separated, or quoted), not only after a separator.
-re='(^|[^[:alnum:]_.])\.custody([/\]|\b)'
+re='(^|[^[:alnum:]_.])\.custody([/\]|[^[:alnum:]_]|$)'
 if [[ $norm =~ $re ]]; then
   shopt -u nocasematch
   deny "custody state is owned by the custody binary" \
@@ -149,9 +154,9 @@ fi
 # drain, skills still legitimately read it, and denying early would train
 # bypass habits. Scoped to raw-file readers (mirrors the ssh-key rule) so
 # prose that merely names the file — git commit -m "remove .keys",
-# gh pr create --body "deleted .keys" — isn't denied. \b after keys keeps
+# gh pr create --body "deleted .keys" — isn't denied. The trailing boundary keeps
 # .keystore from matching.
-re='\b(cat|cp|type|less|more|head|tail|nl|jq|rg|grep|awk|sed|cut|xxd|od|Get-Content|Copy-Item)\b[^|;&]*[ /\]\.keys\b'
+re='(^|[^[:alnum:]_])(cat|cp|type|less|more|head|tail|nl|jq|rg|grep|awk|sed|cut|xxd|od|Get-Content|Copy-Item)([^[:alnum:]_][^|;&]*)?[ /\]\.keys([^[:alnum:]_]|$)'
 if [ "${GUARD_KEYS_DENY:-0}" = "1" ] && [[ $norm =~ $re ]]; then
   shopt -u nocasematch
   deny "plaintext keys files are drained into custody" \
