@@ -19,6 +19,14 @@ run_guard() {
   run --separate-stderr bash "$guard" <<<"$payload"
 }
 
+run_codex_patch_guard() {
+  local patch="$1"
+  local payload
+  payload=$(jq -n --arg cwd "$HOME/dev/repo" --arg command "$patch" \
+    '{tool_name:"apply_patch", cwd:$cwd, tool_input:{command:$command}}')
+  run --separate-stderr bash "$guard" <<<"$payload"
+}
+
 @test "writes outside shared dojo lessons pass without a marker file" {
   run_guard "$HOME/dev/repo/notes.md" "customer-internal"
   [ "$status" -eq 0 ]
@@ -51,6 +59,41 @@ run_guard() {
   reason=$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$output")
   [[ "$reason" == *"sensitive local marker"* ]]
   [[ "$reason" != *"customer-internal"* ]]
+  [ -z "$stderr" ]
+}
+
+@test "Codex apply_patch writes to shared lessons are scanned" {
+  printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_codex_patch_guard "*** Begin Patch
+*** Add File: $HOME/.claude/dojo/lessons/example.md
++Customer-Internal project
+*** End Patch"
+
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
+  [ -z "$stderr" ]
+}
+
+@test "Codex apply_patch resolves relative paths and dot segments" {
+  printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_codex_patch_guard "*** Begin Patch
+*** Add File: ../../.claude/dojo/lessons/example.md
++Customer-Internal project
+*** End Patch"
+
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
+  [ -z "$stderr" ]
+}
+
+@test "Codex apply_patch outside shared lessons passes" {
+  run_codex_patch_guard "*** Begin Patch
+*** Add File: docs/lesson.md
++Customer-Internal project
+*** End Patch"
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
   [ -z "$stderr" ]
 }
 

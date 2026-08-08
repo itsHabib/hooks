@@ -34,6 +34,11 @@ run_hook_split() {
     <"$BATS_TEST_DIRNAME/fixtures/posttool-gh-pr-create/$fixture"
 }
 
+run_codex_hook() {
+  local fixture="$1"
+  run bash -c "jq '.tool_response = {output:.tool_response.stdout, exit_code:.tool_response.exitCode}' '$BATS_TEST_DIRNAME/fixtures/posttool-gh-pr-create/$fixture' | '$BATS_TEST_DIRNAME/../scripts/posttool-gh-pr-create.sh' --no-timeout"
+}
+
 @test "successful create with linked task auto-links PR artifact" {
   run_hook "success-with-task.json"
 
@@ -54,6 +59,14 @@ run_hook_split() {
   # it grew past 100 tasks. lib/pr-lookup.sh is shared between merge and
   # create hooks, so this lock lives in both bats files.
   ! grep -qE 'task_list[[:space:]].*--limit' "$HOOK_TEST_TMP/dossier.log"
+}
+
+@test "Codex Bash response shape auto-links the same PR artifact" {
+  run_codex_hook "success-with-task.json"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Auto-linked PR #7 to dossier task gh-pr-create-hook"* ]]
+  grep -q "artifact_link" "$HOOK_TEST_TMP/dossier.log"
 }
 
 @test "successful create with backtick task linkage also auto-links" {

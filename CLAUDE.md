@@ -20,10 +20,11 @@ Wave-1 (integration-layer) shipped 2026-05-22 → 27. Four hooks live:
 - `posttool-gh-pr-create.sh` — auto-links new PRs as `kind:pr` artifacts
 - `posttool-gh-pr-merge.sh` — auto-completes the linked task + links the merge commit as `kind:commit`
 
-All four are wired in `~/.claude/settings.json` under PostToolUse with
-matchers `Bash`, `mcp__ship__ship`, and `mcp__ship__get_workflow_run`.
-The session env sets `DOSSIER_BIN` and `DOSSIER_CORPUS` so the hook
-subprocess hits the real dossier corpus.
+The hooks are wired in Claude through `~/.claude/settings.json` and in Codex
+through `~/.codex/hooks.json`, using the same event names and matchers. The
+shared `lib/hook-event.sh` normalizes harness response envelopes; policy must
+not branch on the emitting harness. Session env sets `DOSSIER_BIN` and
+`DOSSIER_CORPUS` so the hook subprocess hits the real dossier corpus.
 
 v1-hardening (PRs #9 + #10, in flight): `lib/dossier-cli.sh` wraps
 each dossier verb with stderr capture and structured failure logging
@@ -91,6 +92,7 @@ This section is the sixth — **Composition**: the agent + thin policy choosing 
 ```
 scripts/<hook>.sh    PostToolUse entrypoint — one file per matcher
 lib/                 Shared helpers sourced by hooks
+  hook-event.sh        Claude/Codex event-envelope normalization
   dossier-cli.sh       wrappers around the dossier CLI verbs hooks use
   pr-lookup.sh         parse PR body → task slug/id
   ship-task-lookup.sh  resolve spec doc → task id + project slug
@@ -103,6 +105,12 @@ examples/            copy-pasteable settings.json hook snippets
 Hooks are pure bash + jq. No language runtime, no daemons, no external
 state — the operator's dossier corpus IS the state, and every hook
 write is idempotent on the dossier side.
+
+Cross-harness parity is part of the wire contract. Every hook that consumes a
+tool response needs fixtures for Claude and Codex shapes. In particular, Codex
+shell responses use `tool_response.output`, MCP responses may use
+`structuredContent`, and file writes arrive as `apply_patch` commands rather
+than Claude's `file_path` plus content fields.
 
 ## Develop
 

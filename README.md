@@ -7,7 +7,7 @@ LLM-side git hooks for the personal workbench — deterministic harness-level sc
 
 ## What this is
 
-The **hooks** layer sits between Claude Code's hook system and your local tooling. Each script in `scripts/` handles one lifecycle event (`SessionStart`, `PostToolUse`, etc.), reads event JSON from stdin, and optionally emits short context blocks to stdout for the model.
+The **hooks** layer sits between Claude Code or Codex lifecycle hooks and your local tooling. Each script in `scripts/` handles one lifecycle event (`PreToolUse`, `PostToolUse`, etc.), reads event JSON from stdin, and optionally emits short context blocks to stdout for the model. `lib/hook-event.sh` normalizes the envelope differences so hook policy stays harness-neutral.
 
 Hooks integrate with the workbench MCPs (dossier, ship) and the GitHub CLI to ferry metadata between them on deterministic triggers — closing the gap between "agent did the thing" and "the thing got recorded."
 
@@ -37,7 +37,7 @@ Optionally:
 
 ## Wiring hooks
 
-Minimal `~/.claude/settings.json` shape for the `gh pr merge` hook. Replace `~/pers/hooks` in the `command` field with the path to your own clone (the operator's convention is `~/pers/hooks`, but the hook only needs to point at this repo's `scripts/`):
+The hook shape is shared. Put it under `hooks` in `~/.claude/settings.json`, or use it as `~/.codex/hooks.json`. Replace `$HOME/dev/hooks` if your clone lives elsewhere:
 
 ```json
 {
@@ -46,23 +46,19 @@ Minimal `~/.claude/settings.json` shape for the `gh pr merge` hook. Replace `~/p
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "bash ~/pers/hooks/scripts/posttool-gh-pr-merge.sh", "timeout": 5 }
+          { "type": "command", "command": "bash \"$HOME/dev/hooks/scripts/posttool-gh-pr-merge.sh\"", "timeout": 5 }
         ]
       }
     ]
-  },
-  "env": {
-    "DOSSIER_BIN": "/path/to/dossier",
-    "DOSSIER_CORPUS": "/path/to/dossier-corpus"
   }
 }
 ```
 
-Per-hook snippets for the other three hooks (gh-pr-create, ship-ship-dispatch, ship-getrun) live in `examples/`. Merge them into the same `hooks` block by combining their `PostToolUse` entries.
+Per-hook snippets for the other hooks live in `examples/`. Merge them into the same `hooks` block by combining their `PreToolUse` or `PostToolUse` entries.
 
-Each hook ships its own snippet under `examples/`. Copy the relevant block into `~/.claude/settings.json` under the top-level `hooks` key. Merge with any existing hook entries — do not replace the whole file.
+Claude Code users merge the relevant blocks into `~/.claude/settings.json`; Codex users put the merged document in `~/.codex/hooks.json`. Do not replace unrelated settings. Set `DOSSIER_BIN` and `DOSSIER_CORPUS` in Claude's top-level `env` block or Codex's `[shell_environment_policy.set]` config table. Codex requires reviewing changed command hooks with `/hooks` before they run.
 
-After editing settings, restart Claude Code (or reload settings) so hooks take effect.
+After editing settings, start a fresh session so the harness reloads hook configuration.
 
 ## Conventions
 
@@ -73,7 +69,7 @@ After editing settings, restart Claude Code (or reload settings) so hooks take e
 | **Fail silent on edge cases** | Missing git repo, malformed JSON, missing tools → exit 0 with no output. Never block the agent. |
 | **Idempotent verbs** | When a hook ferries metadata to a tool, the tool's verb must tolerate the hook + the prompt both firing (no double-writes). |
 | **Pure bash + git + jq** | No extra runtime dependencies beyond what's already on the operator's machine. |
-| **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/pers/hooks/...`. |
+| **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/dev/hooks/...`. |
 
 ## Layout
 

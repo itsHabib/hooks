@@ -19,6 +19,11 @@ run_hook() {
     <"$BATS_TEST_DIRNAME/fixtures/posttool-gate-verdict/$fixture"
 }
 
+run_codex_hook() {
+  local fixture="$1"
+  run bash -c "jq '.tool_response = {output:.tool_response.stdout, exit_code:.tool_response.exitCode}' '$BATS_TEST_DIRNAME/fixtures/posttool-gate-verdict/$fixture' | '$BATS_TEST_DIRNAME/../scripts/posttool-gate-verdict.sh' --no-timeout"
+}
+
 @test "gate pass with linked task records a verdict artifact" {
   run_hook "pass-with-task.json"
 
@@ -35,6 +40,14 @@ run_hook() {
   # Project slug, never an id.
   grep -q -- "--project mcp-workstation" "$HOOK_TEST_TMP/dossier.log"
   ! grep -q -- "--project prj_" "$HOOK_TEST_TMP/dossier.log"
+}
+
+@test "Codex Bash response shape records the same verdict artifact" {
+  run_codex_hook "pass-with-task.json"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Recorded gate verdict for PR #42"* ]]
+  grep -q -- "--kind verdict" "$HOOK_TEST_TMP/dossier.log"
 }
 
 @test "gate escalate (park) records no verdict" {
