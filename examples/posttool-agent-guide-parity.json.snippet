@@ -1,0 +1,14 @@
+{
+  "PostToolUse": [
+    {
+      "matcher": "Edit|Write|apply_patch",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash \"$HOME/dev/hooks/scripts/posttool-agent-guide-parity.sh\"",
+          "timeout": 5
+        }
+      ]
+    }
+  ]
+}

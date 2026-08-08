@@ -25,6 +25,14 @@ Runs on `PostToolUse` when the agent executes `gate gate` and gate returns `deci
 
 **Limitation:** only agent-run `gate gate` calls fire this — a `gate gate` run in a raw shell won't. The universal anchor for the verdict fact is gate itself; this hook is the local convenience path.
 
+### `posttool-agent-guide-parity.sh`
+
+Runs after Claude or Codex edits a `CLAUDE.md` or `AGENTS.md`. It reminds the agent when only
+one member of a pair changed, and calls out a missing counterpart, a forwarding-only Codex shim,
+or drift in the shared `dev-workbench` / `eng-philo` managed blocks. It is advisory and never
+blocks an edit; the paired diff remains visible to the operator. Wire the same hook into both
+harnesses using `examples/posttool-agent-guide-parity.json.snippet`.
+
 ## Prerequisites
 
 - **dossier** — https://github.com/itsHabib/dossier. Install the binary (`cargo install --git https://github.com/itsHabib/dossier`) and create a corpus dir with `<corpus>/.dossier/` as the marker. Hooks find it via `DOSSIER_BIN` + `DOSSIER_CORPUS` env vars set in your settings.json.
