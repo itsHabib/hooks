@@ -8,9 +8,36 @@
 # joins back to this verdict on head_sha.
 set -uo pipefail
 
+# Fast path first. This hook fires on every Bash tool call but acts only on
+# `gate gate`, so the overwhelmingly common case is "read the event, decide
+# it's not mine, exit". On an EDR-managed box each child process costs ~1.6s,
+# so that no-op path must not fork: read stdin with the read builtin (not
+# `cat`), decide with bash's own regex (not `jq`), and only then pay for the
+# real work. Everything below the bail-out is the rare path and may fork
+# freely.
+#
+# Matching the raw event text is safe here because it only ever *widens* the
+# candidate set: a false positive falls through to the authoritative jq parse
+# below and exits there. It cannot cause a false negative that skips a real
+# `gate gate`, because the substring must appear in the JSON to appear in the
+# command.
+IFS= read -r -d '' _event || true
+[ -n "$_event" ] || exit 0
+[[ $_event == *'"tool_name"'*'"Bash"'* ]] || exit 0
+[[ $_event == *gate* ]] || exit 0
+
 HOOK_NAME="posttool-gate-verdict"
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$HOOK_DIR/.." && pwd)"
+# Pure-expansion path derivation: `dirname` + `cd` + `pwd` is 3 forks for a
+# string operation. Append `/..` rather than stripping a second component:
+# stripping breaks on a one-segment relative path (`scripts/hook.sh` -> the
+# first %/* gives `scripts`, and a second gives `scripts` again, silently
+# pointing ROOT_DIR at the wrong directory). `/..` is correct for absolute,
+# relative, and bare-name forms alike, and the shell resolves it on open.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+# No slash in BASH_SOURCE at all (invoked as a bare name from its own
+# directory) — %/* leaves the filename untouched, so fall back to cwd.
+[ "$HOOK_DIR" = "${BASH_SOURCE[0]}" ] && HOOK_DIR="."
+ROOT_DIR="$HOOK_DIR/.."
 
 # shellcheck source=lib/dossier-cli.sh
 source "$ROOT_DIR/lib/dossier-cli.sh"
@@ -27,13 +54,10 @@ _soft_fail() {
 }
 
 _read_event() {
-  local event=""
-  event="$(cat)"
-  if [[ -z "$event" ]]; then
-    exit 0
-  fi
-  jq -e '.' <<<"$event" >/dev/null 2>&1 || exit 0
-  printf '%s' "$event"
+  # stdin was already consumed by the fast-path read at the top; validate that
+  # buffer rather than re-reading (a second read would block on a closed pipe).
+  jq -e '.' <<<"$_event" >/dev/null 2>&1 || exit 0
+  printf '%s' "$_event"
 }
 
 _tool_command() {
@@ -145,11 +169,19 @@ if [[ "${1:-}" == "--no-timeout" ]]; then
 fi
 
 if command -v timeout >/dev/null 2>&1; then
+  # Re-exec under `timeout` to bound the `gh` network calls in _main. This
+  # costs a second bash startup, which is why the fast-path bail-out above runs
+  # BEFORE this point — only a real `gate gate` event ever gets here, so the
+  # common no-op path pays it zero times instead of every time.
+  #
+  # The event was consumed from stdin already, so pass it to the timed leg
+  # explicitly; re-reading a drained pipe would hand _main an empty event.
+  #
   # Invoke via `bash "$0"`, not `"$0"` directly, so the timed leg does not
   # depend on the file's executable bit (a 100644 checkout would otherwise die
   # on "Permission denied" and record nothing). The file is also committed
   # 100755 for good measure.
-  timeout 5 bash "$0" --no-timeout "$@" || exit 0
+  timeout 5 bash "$0" --no-timeout "$@" <<<"$_event" || exit 0
 else
   _main "$@" || exit 0
 fi

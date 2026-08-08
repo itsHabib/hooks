@@ -22,6 +22,13 @@ run_guard() {
   [[ "$stderr" == *"Remedy:"* ]]
 }
 
+@test "custody grant after a newline is blocked (command position spans lines)" {
+  run_guard "cd /repo
+custody grant -key tracker -actions read -ttl 8h"
+  [ "$status" -eq 2 ]
+  [[ "$stderr" == *"operator-only"* ]]
+}
+
 @test "custody keys set is blocked (secret entry stays with the operator)" {
   run_guard "custody keys set -name tracker-pat"
   [ "$status" -eq 2 ]
