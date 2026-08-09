@@ -85,6 +85,20 @@ run_patch() {
   [[ "$output" == *"cmd/gate is missing AGENTS.md"* ]]
 }
 
+@test "Codex edits recognize Windows drive paths as absolute" {
+  mkdir -p "$repo/C:/nested"
+  printf '# Guide\n' >"$repo/C:/nested/CLAUDE.md"
+  printf '# Guide\n' >"$repo/C:/nested/AGENTS.md"
+  payload=$(jq -n --arg cwd "$repo" --arg path 'C:\nested\CLAUDE.md' \
+    '{tool_name:"Edit",cwd:$cwd,tool_input:{file_path:$path}}')
+
+  run --separate-stderr bash -c 'cd "$1" && bash "$2"' _ "$repo" "$hook" <<<"$payload"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"CLAUDE.md changed alone"* ]]
+  [ -z "$stderr" ]
+}
+
 @test "malformed input fails silent" {
   run --separate-stderr bash "$hook" <<<'not-json'
   [ "$status" -eq 0 ]

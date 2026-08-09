@@ -31,7 +31,7 @@ fi
 guide_rows=""
 for path in "${paths[@]}"; do
   path=${path//\\//}
-  [[ $path == /* ]] || path="$cwd/$path"
+  [[ $path == /* || $path =~ ^[A-Za-z]:/ ]] || path="$cwd/$path"
   parent=${path%/*}
   base=${path##*/}
   [[ $base == CLAUDE.md || $base == AGENTS.md ]] || continue

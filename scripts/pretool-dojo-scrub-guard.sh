@@ -52,6 +52,7 @@ if [[ $tool_name == "apply_patch" ]]; then
   patch=$(jq -r '.tool_input.command // ""' <<<"$payload" 2>/dev/null) || exit 0
   current_path=""
   current_kind=""
+  unreadable_move=""
 
   flush_path() {
     if [[ -n $current_path && $current_kind != delete ]] && is_lessons_path "$current_path"; then
@@ -74,8 +75,16 @@ if [[ $tool_name == "apply_patch" ]]; then
         current_kind=delete
         ;;
       '*** Move to: '*)
+        move_source=$current_path
         current_path=$(resolve_path "${line#*: }")
         current_kind=move
+        if is_lessons_path "$current_path"; then
+          if [[ -r $move_source ]]; then
+            content+="$(<"$move_source")"$'\n'
+          else
+            unreadable_move=$move_source
+          fi
+        fi
         ;;
       +*)
         if [[ -n $current_path && $current_kind != delete ]] && is_lessons_path "$current_path"; then
@@ -100,6 +109,13 @@ for canonical_path in "${paths[@]}"; do
   relative_paths+="${canonical_path:${#canonical_lessons_root}}"$'\n'
 done
 [[ -n $relative_paths ]] || exit 0
+
+if [[ -n $unreadable_move ]]; then
+  jq -nc --arg reason \
+    "dojo scrub-guard: cannot read the source file being moved into shared lessons; refusing the move." \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
+  exit 0
+fi
 
 markers_path="$HOME/.claude/dojo/scrub-markers.txt"
 if [[ ! -r $markers_path ]]; then

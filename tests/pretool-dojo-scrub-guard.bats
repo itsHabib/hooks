@@ -102,6 +102,22 @@ run_codex_patch_guard() {
   [ -z "$stderr" ]
 }
 
+@test "Codex apply_patch scans unchanged content moved into shared lessons" {
+  mkdir -p "$HOME/dev/repo"
+  printf 'Customer-Internal project\n' >"$HOME/dev/repo/source.md"
+  printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_codex_patch_guard "*** Begin Patch
+*** Update File: source.md
+*** Move to: ../../.claude/dojo/lessons/moved.md
+@@
+ Customer-Internal project
+*** End Patch"
+
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
+  [ -z "$stderr" ]
+}
+
 @test "Codex apply_patch resolves relative paths and dot segments" {
   printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
   run_codex_patch_guard "*** Begin Patch
