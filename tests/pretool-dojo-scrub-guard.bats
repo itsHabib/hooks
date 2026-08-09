@@ -158,6 +158,20 @@ run_codex_patch_guard() {
   [ -z "$stderr" ]
 }
 
+@test "Codex apply_patch resolves symlinked lesson parents before classifying" {
+  mkdir -p "$HOME/dev/repo" "$HOME/.claude/dojo/lessons"
+  ln -s "$HOME/.claude/dojo/lessons" "$HOME/dev/repo/lesson-link"
+  printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_codex_patch_guard "*** Begin Patch
+*** Add File: lesson-link/example.md
++Customer-Internal project
+*** End Patch"
+
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
+  [ -z "$stderr" ]
+}
+
 @test "matching sensitive lesson filenames are denied without scanning the home prefix" {
   export HOME="$BATS_TEST_TMPDIR/customer-internal-home"
   mkdir -p "$HOME/.claude/dojo"

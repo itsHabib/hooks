@@ -31,6 +31,9 @@ canonicalize_path() {
 }
 
 canonical_lessons_root=$(canonicalize_path "$HOME/.claude/dojo/lessons")
+if [[ -d $canonical_lessons_root ]]; then
+  canonical_lessons_root=$(cd "$canonical_lessons_root" 2>/dev/null && pwd -P) || exit 0
+fi
 lessons_root=${canonical_lessons_root,,}
 tool_name=$(jq -r '.tool_name // ""' <<<"$payload" 2>/dev/null) || exit 0
 cwd=$(jq -r '.cwd // ""' <<<"$payload" 2>/dev/null) || exit 0
@@ -38,8 +41,17 @@ content=""
 paths=()
 
 resolve_path() {
-  local path="$1"
+  local path="$1" parent base physical_parent
   [[ $path == /* || $path =~ ^[A-Za-z]:[\\/] ]] || path="${cwd:-$PWD}/$path"
+  path=$(canonicalize_path "$path")
+  parent=${path%/*}
+  base=${path##*/}
+  if [[ -d $parent ]]; then
+    physical_parent=$(cd "$parent" 2>/dev/null && pwd -P) || physical_parent=""
+    if [[ -n $physical_parent ]]; then
+      path="$physical_parent/$base"
+    fi
+  fi
   canonicalize_path "$path"
 }
 
