@@ -41,7 +41,7 @@ content=""
 paths=()
 
 resolve_path() {
-  local path="$1" parent base physical_parent
+  local path="$1" parent base physical_parent resolved
   [[ $path == /* || $path =~ ^[A-Za-z]:[\\/] ]] || path="${cwd:-$PWD}/$path"
   path=$(canonicalize_path "$path")
   parent=${path%/*}
@@ -52,11 +52,21 @@ resolve_path() {
       path="$physical_parent/$base"
     fi
   fi
+  if [[ -L $path ]]; then
+    if command -v realpath >/dev/null 2>&1 \
+      && resolved=$(realpath "$path" 2>/dev/null); then
+      path=$resolved
+    else
+      printf '__DOJO_UNRESOLVED_SYMLINK__:%s' "$path"
+      return
+    fi
+  fi
   canonicalize_path "$path"
 }
 
 is_lessons_path() {
   local normalized_path=${1,,}
+  [[ $normalized_path == __dojo_unresolved_symlink__:* ]] && return 0
   [[ $normalized_path == "$lessons_root" || $normalized_path == "$lessons_root/"* ]]
 }
 
@@ -137,9 +147,22 @@ else
 fi
 
 relative_paths=""
+unresolved_symlink=""
 for canonical_path in "${paths[@]}"; do
+  if [[ $canonical_path == __DOJO_UNRESOLVED_SYMLINK__:* ]]; then
+    unresolved_symlink=1
+    continue
+  fi
   relative_paths+="${canonical_path:${#canonical_lessons_root}}"$'\n'
 done
+
+if [[ -n $unresolved_symlink ]]; then
+  jq -nc --arg reason \
+    "dojo scrub-guard: cannot resolve a symlinked write target; refusing the write." \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
+  exit 0
+fi
+
 [[ -n $relative_paths ]] || exit 0
 
 if [[ -n $unreadable_move ]]; then

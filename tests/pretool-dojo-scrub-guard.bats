@@ -172,6 +172,35 @@ run_codex_patch_guard() {
   [ -z "$stderr" ]
 }
 
+@test "Codex apply_patch resolves a symlinked lesson file before classifying" {
+  mkdir -p "$HOME/dev/repo" "$HOME/.claude/dojo/lessons"
+  printf 'Generic project\n' >"$HOME/.claude/dojo/lessons/target.md"
+  ln -s "$HOME/.claude/dojo/lessons/target.md" "$HOME/dev/repo/lesson-file.md"
+  printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_codex_patch_guard "*** Begin Patch
+*** Update File: lesson-file.md
+@@
+-Generic project
++Customer-Internal project
+*** End Patch"
+
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
+  [ -z "$stderr" ]
+}
+
+@test "direct writes resolve a symlinked lesson file before classifying" {
+  mkdir -p "$HOME/dev/repo" "$HOME/.claude/dojo/lessons"
+  printf 'Generic project\n' >"$HOME/.claude/dojo/lessons/target.md"
+  ln -s "$HOME/.claude/dojo/lessons/target.md" "$HOME/dev/repo/lesson-file.md"
+  printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_guard "$HOME/dev/repo/lesson-file.md" "Customer-Internal project"
+
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
+  [ -z "$stderr" ]
+}
+
 @test "matching sensitive lesson filenames are denied without scanning the home prefix" {
   export HOME="$BATS_TEST_TMPDIR/customer-internal-home"
   mkdir -p "$HOME/.claude/dojo"
