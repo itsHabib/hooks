@@ -52,12 +52,30 @@ if [[ $tool_name == "apply_patch" ]]; then
   patch=$(jq -r '.tool_input.command // ""' <<<"$payload" 2>/dev/null) || exit 0
   current_path=""
   current_kind=""
+  move_source=""
+  move_removed=""
+  move_added=""
   unreadable_move=""
 
   flush_path() {
     if [[ -n $current_path && $current_kind != delete ]] && is_lessons_path "$current_path"; then
       paths+=("$current_path")
+      if [[ $current_kind == move ]]; then
+        if [[ -r $move_source ]]; then
+          content+="$(awk '
+            NR == FNR { if (FNR > 1) removed[$0]++; next }
+            removed[$0] > 0 { removed[$0]--; next }
+            { print }
+          ' <(printf '__dojo_removed_lines__\n%s' "$move_removed") "$move_source")"$'\n'
+          content+="$move_added"
+        else
+          unreadable_move=$move_source
+        fi
+      fi
     fi
+    move_source=""
+    move_removed=""
+    move_added=""
   }
 
   while IFS= read -r line || [[ -n $line ]]; do
@@ -78,17 +96,19 @@ if [[ $tool_name == "apply_patch" ]]; then
         move_source=$current_path
         current_path=$(resolve_path "${line#*: }")
         current_kind=move
-        if is_lessons_path "$current_path"; then
-          if [[ -r $move_source ]]; then
-            content+="$(<"$move_source")"$'\n'
-          else
-            unreadable_move=$move_source
-          fi
-        fi
         ;;
       +*)
         if [[ -n $current_path && $current_kind != delete ]] && is_lessons_path "$current_path"; then
-          content+="${line#+}"$'\n'
+          if [[ $current_kind == move ]]; then
+            move_added+="${line#+}"$'\n'
+          else
+            content+="${line#+}"$'\n'
+          fi
+        fi
+        ;;
+      -*)
+        if [[ -n $current_path && $current_kind == move ]] && is_lessons_path "$current_path"; then
+          move_removed+="${line#-}"$'\n'
         fi
         ;;
     esac

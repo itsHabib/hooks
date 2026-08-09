@@ -76,6 +76,19 @@ run_patch() {
   [ -z "$stderr" ]
 }
 
+@test "a paired guide deletion is silent" {
+  write_pair
+  unlink "$repo/CLAUDE.md"
+  unlink "$repo/AGENTS.md"
+  run_patch '*** Begin Patch
+*** Delete File: CLAUDE.md
+*** Delete File: AGENTS.md
+*** End Patch'
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ -z "$stderr" ]
+}
+
 @test "Codex apply_patch resolves nested relative guide paths" {
   mkdir -p "$repo/cmd/gate"
   printf '# Guide\n' >"$repo/cmd/gate/CLAUDE.md"

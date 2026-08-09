@@ -65,6 +65,11 @@ while IFS= read -r parent; do
   grep -Fqx "$parent"$'\tCLAUDE.md' <<<"$guide_rows" && touched_claude=1
   grep -Fqx "$parent"$'\tAGENTS.md' <<<"$guide_rows" && touched_agents=1
 
+  if [ ! -f "$claude" ] && [ ! -f "$agents" ] \
+    && [ "$touched_claude" -eq 1 ] && [ "$touched_agents" -eq 1 ]; then
+    continue
+  fi
+
   if [ ! -f "$claude" ] || [ ! -f "$agents" ]; then
     missing=CLAUDE.md
     [ -f "$claude" ] && missing=AGENTS.md
