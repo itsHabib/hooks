@@ -69,7 +69,7 @@ _tool_command() {
 # gate prints its decision as a JSON object on stdout; read that specifically
 # (not stderr, which may carry unrelated noise that would break the parse).
 _tool_stdout() {
-  hook_event_tool_output "$1"
+  hook_event_tool_stdout "$1"
 }
 
 # Match only `gate gate …` as the actual command — not `gate judge` / `gate

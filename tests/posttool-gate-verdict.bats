@@ -50,6 +50,14 @@ run_codex_hook() {
   grep -q -- "--kind verdict" "$HOOK_TEST_TMP/dossier.log"
 }
 
+@test "gate verdict ignores stderr noise beside a valid stdout decision" {
+  run bash -c "jq '.tool_response.stderr = \"warning: unrelated noise\"' '$BATS_TEST_DIRNAME/fixtures/posttool-gate-verdict/pass-with-task.json' | '$BATS_TEST_DIRNAME/../scripts/posttool-gate-verdict.sh' --no-timeout"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Recorded gate verdict for PR #42"* ]]
+  grep -q -- "--kind verdict" "$HOOK_TEST_TMP/dossier.log"
+}
+
 @test "gate escalate (park) records no verdict" {
   run_hook "escalate.json"
 

@@ -35,7 +35,7 @@ catches mock-reality drift before merge.
 <!-- BEGIN dev-workbench (managed by /dev-workbench skill - re-run to refresh; hand-edits inside this block will be overwritten) -->
 ## Dev workbench
 
-These MCPs, planes, and skills are available in Claude and Codex sessions on this machine; each harness injects tool signatures, so this is the map of how they compose, not a second verb manual. When the signal matches, call the verb. Knowledge questions about another portfolio repo go to `/consult`; authority questions - direction, spend, credentials, irreversible actions - go to the operator.
+These MCPs, planes, and skills are available in Claude and Codex sessions on this machine; each harness injects tool signatures, so this is the map of how they compose, not a second verb manual. **This is hooks - the cross-harness lifecycle bookkeeping layer.** When the signal matches, call the verb. Knowledge questions about another portfolio repo go to `/consult`; authority questions - direction, spend, credentials, irreversible actions - go to the operator.
 
 **MCPs (in-session):**
 - **dossier** - durable project memory: projects -> phases -> tasks -> artifacts.
@@ -67,6 +67,8 @@ dossier task -> /worktree-add -> spec -> ship driver (dispatch -> poll -> judgme
        \-> 2: park -> console / gate next -> human decision -> escalate -> gate resolve -> gate next
        \-> attention or terminal receipt -> flare -> Slack (best effort; never gates)
 ```
+
+`/work-driver` coordinates dispatch -> poll -> land and runs its own review triage inline. `/pr-risk` and `/review-coordinator` are explicit steps; the driver does not invoke them automatically.
 
 ### Why this shape
 
@@ -127,7 +129,7 @@ WSL on Windows).
 | **Soft-fail silent** | Missing git repo, malformed JSON, missing tools → `exit 0`. Never block the agent. Failures land in `~/.cache/hooks-errors.log` for triage rather than the agent transcript. |
 | **Idempotent verbs** | Dossier write verbs (`artifact_link`, `task_complete`) tolerate the hook + the prompt both firing — no double-writes. |
 | **Pure bash + git + jq** | No extra runtime deps beyond what's already on the operator's machine. |
-| **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/pers/hooks/...`. |
+| **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/dev/hooks/...`. |
 | **HOOK_NAME at top of every hook** | `lib/dossier-cli.sh`'s failure log uses it as the hook-name column; without it, failures log as `unknown-hook`. |
 
 ## Review-cycle discipline

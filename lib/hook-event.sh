@@ -35,6 +35,25 @@ hook_event_tool_output() {
   ' <<<"$event"
 }
 
+hook_event_tool_stdout() {
+  local event="$1"
+  jq -r '
+    if ((.tool_output? | type) == "string") and (.tool_output != "") then
+      .tool_output
+    elif (.tool_response | type) == "string" then
+      .tool_response
+    elif (.tool_response | type) == "object" then
+      if ((.tool_response.output? | type) == "string") then
+        .tool_response.output
+      else
+        (.tool_response.stdout? | select(type == "string") // "")
+      end
+    else
+      ""
+    end
+  ' <<<"$event"
+}
+
 hook_event_tool_exit_code() {
   local event="$1"
   jq -r '

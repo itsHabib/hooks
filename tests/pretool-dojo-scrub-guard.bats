@@ -74,6 +74,34 @@ run_codex_patch_guard() {
   [ -z "$stderr" ]
 }
 
+@test "Codex apply_patch allows removing sensitive lesson content" {
+  printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_codex_patch_guard "*** Begin Patch
+*** Update File: $HOME/.claude/dojo/lessons/example.md
+@@
+-Customer-Internal project
++Generic project
+*** End Patch"
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ -z "$stderr" ]
+}
+
+@test "Codex apply_patch still denies sensitive added lines after clean deletions" {
+  printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
+  run_codex_patch_guard "*** Begin Patch
+*** Update File: $HOME/.claude/dojo/lessons/example.md
+@@
+-Generic project
++Customer-Internal project
+*** End Patch"
+
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$output")" = "deny" ]
+  [ -z "$stderr" ]
+}
+
 @test "Codex apply_patch resolves relative paths and dot segments" {
   printf '/customer-internal/i\n' >"$HOME/.claude/dojo/scrub-markers.txt"
   run_codex_patch_guard "*** Begin Patch

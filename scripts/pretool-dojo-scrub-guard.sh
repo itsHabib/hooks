@@ -30,40 +30,74 @@ canonicalize_path() {
   printf '/%s' "$(IFS=/; printf '%s' "${normalized[*]}")"
 }
 
+canonical_lessons_root=$(canonicalize_path "$HOME/.claude/dojo/lessons")
+lessons_root=${canonical_lessons_root,,}
 tool_name=$(jq -r '.tool_name // ""' <<<"$payload" 2>/dev/null) || exit 0
 cwd=$(jq -r '.cwd // ""' <<<"$payload" 2>/dev/null) || exit 0
 content=""
 paths=()
 
+resolve_path() {
+  local path="$1"
+  [[ $path == /* || $path =~ ^[A-Za-z]:[\\/] ]] || path="${cwd:-$PWD}/$path"
+  canonicalize_path "$path"
+}
+
+is_lessons_path() {
+  local normalized_path=${1,,}
+  [[ $normalized_path == "$lessons_root" || $normalized_path == "$lessons_root/"* ]]
+}
+
 if [[ $tool_name == "apply_patch" ]]; then
-  content=$(jq -r '.tool_input.command // ""' <<<"$payload" 2>/dev/null) || exit 0
+  patch=$(jq -r '.tool_input.command // ""' <<<"$payload" 2>/dev/null) || exit 0
+  current_path=""
+  current_kind=""
+
+  flush_path() {
+    if [[ -n $current_path && $current_kind != delete ]] && is_lessons_path "$current_path"; then
+      paths+=("$current_path")
+    fi
+  }
+
   while IFS= read -r line || [[ -n $line ]]; do
     case "$line" in
-      '*** Add File: '* | '*** Update File: '* | '*** Delete File: '* | '*** Move to: '*)
-        file_path=${line#*: }
-        [[ $file_path == /* || $file_path =~ ^[A-Za-z]:[\\/] ]] || file_path="${cwd:-$PWD}/$file_path"
-        paths+=("$file_path")
+      '*** Add File: '* | '*** Update File: '*)
+        flush_path
+        current_path=$(resolve_path "${line#*: }")
+        current_kind=${line#'*** '}
+        current_kind=${current_kind%% File:*}
+        current_kind=${current_kind,,}
+        ;;
+      '*** Delete File: '*)
+        flush_path
+        current_path=$(resolve_path "${line#*: }")
+        current_kind=delete
+        ;;
+      '*** Move to: '*)
+        current_path=$(resolve_path "${line#*: }")
+        current_kind=move
+        ;;
+      +*)
+        if [[ -n $current_path && $current_kind != delete ]] && is_lessons_path "$current_path"; then
+          content+="${line#+}"$'\n'
+        fi
         ;;
     esac
-  done <<<"$content"
+  done <<<"$patch"
+  flush_path
 else
   file_path=$(jq -r '.tool_input.file_path // ""' <<<"$payload" 2>/dev/null) || exit 0
   [[ -n $file_path ]] || exit 0
-  [[ $file_path == /* || $file_path =~ ^[A-Za-z]:[\\/] ]] || file_path="${cwd:-$PWD}/$file_path"
-  paths+=("$file_path")
+  canonical_path=$(resolve_path "$file_path")
+  is_lessons_path "$canonical_path" || exit 0
+  paths+=("$canonical_path")
   content=$(jq -r '[.tool_input.content, .tool_input.new_string] | map(select(type == "string")) | join("\n")' \
     <<<"$payload" 2>/dev/null) || exit 0
 fi
 
-canonical_lessons_root=$(canonicalize_path "$HOME/.claude/dojo/lessons")
-lessons_root=${canonical_lessons_root,,}
 relative_paths=""
-for file_path in "${paths[@]}"; do
-  canonical_path=$(canonicalize_path "$file_path")
-  normalized_path=${canonical_path,,}
-  if [[ $normalized_path == "$lessons_root" || $normalized_path == "$lessons_root/"* ]]; then
-    relative_paths+="${canonical_path:${#canonical_lessons_root}}"$'\n'
-  fi
+for canonical_path in "${paths[@]}"; do
+  relative_paths+="${canonical_path:${#canonical_lessons_root}}"$'\n'
 done
 [[ -n $relative_paths ]] || exit 0
 
