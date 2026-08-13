@@ -89,8 +89,6 @@ if [[ $cmd =~ $re ]]; then
        "reference keys via ssh -i; never read or copy key files"
 fi
 
-shopt -u nocasematch
-
 # gate state (audit chain) + signing keys — only the gate binary writes here.
 # Anchored on the `gate/` parent, not on a specific home (the state dir has
 # lived at ~/pers/gate and now ~/dev/gate; pinning either one silently stops
@@ -99,13 +97,44 @@ shopt -u nocasematch
 # path, and `gate/internal/state` does not match (the segments aren't
 # adjacent). Boundaries on BOTH sides of gate: the trailing one keeps sibling names
 # like state_backup out, and the leading one keeps any word merely ending in
-# "gate" — aggregate/state, delegate/keys — from tripping the rule. A miss on
-# either is a false negative, never a false positive.
-re='(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
+# "gate" — aggregate/state, delegate/keys — from tripping the rule. The verb
+# needs its own leading boundary too: without one, "rm" inside an interior
+# substring — "normalization" in a `gate judge -why "..."` argument — matches,
+# and any legitimate `-state ~/dev/gate/state` flag later in the command turns
+# the whole call into a denial (this blocked a real gate judge on 2026-08-12).
+#
+# Anchoring the verb costs the coverage the unanchored form got by accident:
+# `cp` used to match inside `scp`, so remote copies of the signing key were
+# blocked as a side effect of the bug. Every remote-copy verb is therefore
+# listed in its own right — dropping one is a silent exfiltration path, not a
+# stray denial. rsync was never covered even before the anchor.
+#
+# The surface the anchor cost is exactly the PREFIXED spellings — a verb
+# substring that does not start its token: scp, rcp, pscp, srm. Suffixed ones
+# never regressed, because the alternation still matches at the token start
+# (`rmdir` matches via `rm`). That set is enumerated here rather than derived,
+# which is a known structural weakness: the terminating fix is to anchor on
+# command position the way the custody rule below does, so any token in
+# command position is checked whatever it is named. See FOLLOWUPS.md.
+#
+# Bias, since the two boundaries pull opposite ways: a leading boundary that
+# matches too little only ever costs a block (false negative), while the verb
+# list that matches too little costs a KEY. Widen the verb list on sight;
+# loosen the boundaries only with a test that proves the denial was spurious.
+#
+# Evaluated under nocasematch (inherited from the ssh rule above, released
+# below) for the same reason that rule is: PowerShell cmdlet names and Windows
+# paths are case-insensitive, so `copy-item` and `COPY-ITEM` invoke exactly the
+# cmdlet `Copy-Item` names. Case-sensitive, the Item trio protects only one
+# spelling out of many and the other spellings walk the signing key.
+re='(^|[^[:alnum:]_])(rm|mv|cp|scp|rcp|pscp|srm|rsync|Remove-Item|Move-Item|Copy-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
 if [[ $cmd =~ $re ]]; then
+  shopt -u nocasematch
   deny "gate state/keys are append-only and owned by the gate binary" \
        "use gate subcommands; never edit state files directly"
 fi
+
+shopt -u nocasematch
 
 # The custody rules match against a normalized copy of the command: quotes
 # stripped (so "custody.exe", gr""ant, '.custody\..' collapse) and matching

