@@ -99,9 +99,13 @@ shopt -u nocasematch
 # path, and `gate/internal/state` does not match (the segments aren't
 # adjacent). Boundaries on BOTH sides of gate: the trailing one keeps sibling names
 # like state_backup out, and the leading one keeps any word merely ending in
-# "gate" — aggregate/state, delegate/keys — from tripping the rule. A miss on
-# either is a false negative, never a false positive.
-re='(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
+# "gate" — aggregate/state, delegate/keys — from tripping the rule. The verb
+# needs its own leading boundary too: without one, "rm" inside an interior
+# substring — "normalization" in a `gate judge -why "..."` argument — matches,
+# and any legitimate `-state ~/dev/gate/state` flag later in the command turns
+# the whole call into a denial (this blocked a real gate judge on 2026-08-12).
+# A miss on any of these boundaries is a false negative, never a false positive.
+re='(^|[^[:alnum:]_])(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
 if [[ $cmd =~ $re ]]; then
   deny "gate state/keys are append-only and owned by the gate binary" \
        "use gate subcommands; never edit state files directly"

@@ -250,3 +250,19 @@ custody grant -key tracker -actions read -ttl 8h"
   run_guard "rm -rf ~/repos/delegate/keys"
   [ "$status" -eq 0 ]
 }
+
+@test "false positive: a verb hidden inside a word does not trip the rule" {
+  # "rm" inside "normalization" is not the rm verb. Without a leading boundary
+  # on the verb alternation, this denied a legitimate gate judge call whose
+  # -why text contained "normalization" followed by -state ~/dev/gate/state
+  # (2026-08-12).
+  run_guard 'gate judge -run run_abc -grant grt_x -why "score normalization applied" -state ~/dev/gate/state'
+  [ "$status" -eq 0 ]
+  run_guard 'gate gate -repo o/r -pr 5 -grant grt_x -state ~/dev/gate/state'
+  [ "$status" -eq 0 ]
+}
+
+@test "gate state: verb at start of command still blocked after boundary fix" {
+  run_guard "rm ~/dev/gate/keys/signing.key"
+  [ "$status" -eq 2 ]
+}
