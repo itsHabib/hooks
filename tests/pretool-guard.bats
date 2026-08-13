@@ -287,3 +287,17 @@ custody grant -key tracker -actions read -ttl 8h"
   run_guard 'Remove-Item C:\Users\me\dev\gate\state\log.jsonl'
   [ "$status" -eq 2 ]
 }
+
+@test "gate keys: cmdlet casing does not change what is protected" {
+  # PowerShell cmdlet names and Windows paths are case-insensitive, so every
+  # spelling below invokes the same cmdlet against the same file. Evaluated
+  # case-sensitively, the rule protects one spelling and the rest walk the key.
+  run_guard 'copy-item C:\Users\me\dev\gate\keys\signing.key C:\tmp\k'
+  [ "$status" -eq 2 ]
+  run_guard 'COPY-ITEM C:\Users\me\dev\gate\keys\signing.key C:\tmp\k'
+  [ "$status" -eq 2 ]
+  run_guard 'remove-item C:\Users\me\dev\gate\state\log.jsonl'
+  [ "$status" -eq 2 ]
+  run_guard 'Move-Item C:\Users\me\dev\GATE\KEYS\signing.key C:\tmp\k'
+  [ "$status" -eq 2 ]
+}

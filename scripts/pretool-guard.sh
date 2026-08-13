@@ -89,8 +89,6 @@ if [[ $cmd =~ $re ]]; then
        "reference keys via ssh -i; never read or copy key files"
 fi
 
-shopt -u nocasematch
-
 # gate state (audit chain) + signing keys — only the gate binary writes here.
 # Anchored on the `gate/` parent, not on a specific home (the state dir has
 # lived at ~/pers/gate and now ~/dev/gate; pinning either one silently stops
@@ -115,11 +113,20 @@ shopt -u nocasematch
 # matches too little only ever costs a block (false negative), while the verb
 # list that matches too little costs a KEY. Widen the verb list on sight;
 # loosen the boundaries only with a test that proves the denial was spurious.
+#
+# Evaluated under nocasematch (inherited from the ssh rule above, released
+# below) for the same reason that rule is: PowerShell cmdlet names and Windows
+# paths are case-insensitive, so `copy-item` and `COPY-ITEM` invoke exactly the
+# cmdlet `Copy-Item` names. Case-sensitive, the Item trio protects only one
+# spelling out of many and the other spellings walk the signing key.
 re='(^|[^[:alnum:]_])(rm|mv|cp|scp|rsync|Remove-Item|Move-Item|Copy-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
 if [[ $cmd =~ $re ]]; then
+  shopt -u nocasematch
   deny "gate state/keys are append-only and owned by the gate binary" \
        "use gate subcommands; never edit state files directly"
 fi
+
+shopt -u nocasematch
 
 # The custody rules match against a normalized copy of the command: quotes
 # stripped (so "custody.exe", gr""ant, '.custody\..' collapse) and matching
