@@ -56,6 +56,10 @@ gate-keys-scp	scp ~/dev/gate/keys/signing.key host:/tmp/key
 gate-keys-rsync	rsync -a ~/dev/gate/keys/ host:/tmp/keys/
 gate-keys-copy-item	Copy-Item C:\Users\me\dev\gate\keys\signing.key C:\tmp\k
 gate-keys-copy-item-lower	copy-item C:\Users\me\dev\gate\keys\signing.key C:\tmp\k
+gate-keys-rcp	rcp ~/dev/gate/keys/signing.key host:/tmp/k
+gate-keys-pscp	pscp C:\Users\me\dev\gate\keys\signing.key host:/tmp/k
+gate-keys-srm	srm ~/dev/gate/keys/signing.key
+gate-state-rmdir	rmdir ~/dev/gate/state
 custody-grant	custody grant -key k -actions read -ttl 8h
 custody-keys	custody keys set -name tracker
 custody-exe	./custody.exe grant -key k

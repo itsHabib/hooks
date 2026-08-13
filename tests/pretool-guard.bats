@@ -288,6 +288,22 @@ custody grant -key tracker -actions read -ttl 8h"
   [ "$status" -eq 2 ]
 }
 
+@test "gate keys: prefixed copy/delete clients are blocked, not just bare verbs" {
+  # The anchor's whole regression surface is verbs that do not start their
+  # token — these matched the unanchored regex via the embedded substring and
+  # would otherwise have silently lost coverage. Suffixed spellings never
+  # regressed (rmdir still matches via rm at the token start) and are asserted
+  # here so a future edit cannot quietly trade one for the other.
+  run_guard "rcp ~/dev/gate/keys/signing.key host:/tmp/k"
+  [ "$status" -eq 2 ]
+  run_guard 'pscp C:\Users\me\dev\gate\keys\signing.key host:/tmp/k'
+  [ "$status" -eq 2 ]
+  run_guard "srm ~/dev/gate/keys/signing.key"
+  [ "$status" -eq 2 ]
+  run_guard "rmdir ~/dev/gate/state"
+  [ "$status" -eq 2 ]
+}
+
 @test "gate keys: cmdlet casing does not change what is protected" {
   # PowerShell cmdlet names and Windows paths are case-insensitive, so every
   # spelling below invokes the same cmdlet against the same file. Evaluated

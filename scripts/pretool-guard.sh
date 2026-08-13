@@ -109,6 +109,14 @@ fi
 # listed in its own right — dropping one is a silent exfiltration path, not a
 # stray denial. rsync was never covered even before the anchor.
 #
+# The surface the anchor cost is exactly the PREFIXED spellings — a verb
+# substring that does not start its token: scp, rcp, pscp, srm. Suffixed ones
+# never regressed, because the alternation still matches at the token start
+# (`rmdir` matches via `rm`). That set is enumerated here rather than derived,
+# which is a known structural weakness: the terminating fix is to anchor on
+# command position the way the custody rule below does, so any token in
+# command position is checked whatever it is named. See FOLLOWUPS.md.
+#
 # Bias, since the two boundaries pull opposite ways: a leading boundary that
 # matches too little only ever costs a block (false negative), while the verb
 # list that matches too little costs a KEY. Widen the verb list on sight;
@@ -119,7 +127,7 @@ fi
 # paths are case-insensitive, so `copy-item` and `COPY-ITEM` invoke exactly the
 # cmdlet `Copy-Item` names. Case-sensitive, the Item trio protects only one
 # spelling out of many and the other spellings walk the signing key.
-re='(^|[^[:alnum:]_])(rm|mv|cp|scp|rsync|Remove-Item|Move-Item|Copy-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
+re='(^|[^[:alnum:]_])(rm|mv|cp|scp|rcp|pscp|srm|rsync|Remove-Item|Move-Item|Copy-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
 if [[ $cmd =~ $re ]]; then
   shopt -u nocasematch
   deny "gate state/keys are append-only and owned by the gate binary" \
