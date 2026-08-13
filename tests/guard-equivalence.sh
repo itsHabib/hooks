@@ -52,6 +52,9 @@ allow-aggregate-state	rm aggregate/state/foo
 allow-delegate-keys	rm delegate/keys/foo
 allow-gate-state-backup	rm gate/state_backup/foo
 allow-gate-judge-why	gate judge -run run_abc -grant grt_x -why "score normalization applied" -state ~/dev/gate/state
+gate-keys-scp	scp ~/dev/gate/keys/signing.key host:/tmp/key
+gate-keys-rsync	rsync -a ~/dev/gate/keys/ host:/tmp/keys/
+gate-keys-copy-item	Copy-Item C:\Users\me\dev\gate\keys\signing.key C:\tmp\k
 custody-grant	custody grant -key k -actions read -ttl 8h
 custody-keys	custody keys set -name tracker
 custody-exe	./custody.exe grant -key k

@@ -104,8 +104,18 @@ shopt -u nocasematch
 # substring — "normalization" in a `gate judge -why "..."` argument — matches,
 # and any legitimate `-state ~/dev/gate/state` flag later in the command turns
 # the whole call into a denial (this blocked a real gate judge on 2026-08-12).
-# A miss on any of these boundaries is a false negative, never a false positive.
-re='(^|[^[:alnum:]_])(rm|mv|cp|Remove-Item|Move-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
+#
+# Anchoring the verb costs the coverage the unanchored form got by accident:
+# `cp` used to match inside `scp`, so remote copies of the signing key were
+# blocked as a side effect of the bug. Every remote-copy verb is therefore
+# listed in its own right — dropping one is a silent exfiltration path, not a
+# stray denial. rsync was never covered even before the anchor.
+#
+# Bias, since the two boundaries pull opposite ways: a leading boundary that
+# matches too little only ever costs a block (false negative), while the verb
+# list that matches too little costs a KEY. Widen the verb list on sight;
+# loosen the boundaries only with a test that proves the denial was spurious.
+re='(^|[^[:alnum:]_])(rm|mv|cp|scp|rsync|Remove-Item|Move-Item|Copy-Item)[^|;&]*[^[:alnum:]_]gate[/\](state|keys)([^[:alnum:]_]|$)'
 if [[ $cmd =~ $re ]]; then
   deny "gate state/keys are append-only and owned by the gate binary" \
        "use gate subcommands; never edit state files directly"
