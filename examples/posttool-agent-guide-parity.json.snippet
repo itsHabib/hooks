@@ -2,11 +2,11 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "mcp__ship__get_workflow_run",
+        "matcher": "Edit|Write|apply_patch",
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$HOME/dev/hooks/scripts/posttool-ship-getrun.sh\"",
+            "command": "bash \"$HOME/dev/hooks/scripts/posttool-agent-guide-parity.sh\"",
             "timeout": 5
           }
         ]

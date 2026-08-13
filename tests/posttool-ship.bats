@@ -11,6 +11,16 @@ load test_helper
   [[ "$output" == *"task_update --id tsk_01KS6R3A51BE3CR6YS8DJ4DBDS --note ship run wf_01ARZ3NDEKTSV4RRFFQ69G5FAV dispatched against docs/integration-layer/ship-ship-done-hook.md --actor hook:ship-dispatch"* ]]
 }
 
+@test "dispatch accepts Codex structuredContent response" {
+  substitute_workdir "$BATS_TEST_DIRNAME/fixtures/ship-dispatch-event.json" \
+    | jq '.tool_response = {structuredContent:.tool_response}' \
+    | "$DISPATCH_HOOK"
+
+  run dossier_calls
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"task_update --id tsk_01KS6R3A51BE3CR6YS8DJ4DBDS --note ship run wf_01ARZ3NDEKTSV4RRFFQ69G5FAV dispatched"* ]]
+}
+
 @test "dispatch exits silent when spec doc has no linked task" {
   substitute_workdir "$BATS_TEST_DIRNAME/fixtures/ship-dispatch-no-task-event.json" \
     | "$DISPATCH_HOOK"
@@ -114,6 +124,16 @@ load test_helper
   [ "$status" -eq 0 ]
   [[ "$output" == *"artifact_link --project mcp-workstation --task tsk_01KS6R3A51BE3CR6YS8DJ4DBDS --kind run --ref wf_01ARZ3NDEKTSV4RRFFQ69G5FAV --label ship workflow run — succeeded --actor hook:ship-getrun"* ]]
   [[ "$output" != *"task_update"* ]]
+}
+
+@test "getrun accepts Codex structuredContent response" {
+  substitute_workdir "$BATS_TEST_DIRNAME/fixtures/getrun-succeeded-event.json" \
+    | jq '.tool_response = {structuredContent:.tool_response}' \
+    | "$GETRUN_HOOK"
+
+  run dossier_calls
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"artifact_link --project mcp-workstation --task tsk_01KS6R3A51BE3CR6YS8DJ4DBDS --kind run"* ]]
 }
 
 @test "getrun links failed run and appends terminal note" {

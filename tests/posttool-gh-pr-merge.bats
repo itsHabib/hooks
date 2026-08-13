@@ -21,6 +21,11 @@ run_hook() {
     <"$BATS_TEST_DIRNAME/fixtures/posttool-gh-pr-merge/$fixture"
 }
 
+run_codex_hook() {
+  local fixture="$1"
+  run bash -c "jq '.tool_response = {output:.tool_response.stdout, exit_code:.tool_response.exitCode}' '$BATS_TEST_DIRNAME/fixtures/posttool-gh-pr-merge/$fixture' | '$BATS_TEST_DIRNAME/../scripts/posttool-gh-pr-merge.sh' --no-timeout"
+}
+
 @test "successful merge with linked task auto-completes and links commit + receipt" {
   run_hook "success-with-task.json"
 
@@ -50,6 +55,15 @@ run_hook() {
   # wrapper prepends it), so the assertion matches `task_list` followed
   # anywhere by `--limit` rather than anchoring at line start.
   ! grep -qE 'task_list[[:space:]].*--limit' "$HOOK_TEST_TMP/dossier.log"
+}
+
+@test "Codex Bash response shape closes the same task" {
+  run_codex_hook "success-with-task.json"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Auto-closed dossier task gh-pr-merge-hook on PR #42 merge"* ]]
+  grep -q "task_complete" "$HOOK_TEST_TMP/dossier.log"
+  grep -q -- "--kind receipt" "$HOOK_TEST_TMP/dossier.log"
 }
 
 @test "successful merge with backtick task linkage also auto-closes" {

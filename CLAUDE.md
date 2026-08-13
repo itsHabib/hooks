@@ -20,10 +20,11 @@ Wave-1 (integration-layer) shipped 2026-05-22 → 27. Four hooks live:
 - `posttool-gh-pr-create.sh` — auto-links new PRs as `kind:pr` artifacts
 - `posttool-gh-pr-merge.sh` — auto-completes the linked task + links the merge commit as `kind:commit`
 
-All four are wired in `~/.claude/settings.json` under PostToolUse with
-matchers `Bash`, `mcp__ship__ship`, and `mcp__ship__get_workflow_run`.
-The session env sets `DOSSIER_BIN` and `DOSSIER_CORPUS` so the hook
-subprocess hits the real dossier corpus.
+The hooks are wired in Claude through `~/.claude/settings.json` and in Codex
+through `~/.codex/hooks.json`, using the same event names and matchers. The
+shared `lib/hook-event.sh` normalizes harness response envelopes; policy must
+not branch on the emitting harness. Session env sets `DOSSIER_BIN` and
+`DOSSIER_CORPUS` so the hook subprocess hits the real dossier corpus.
 
 v1-hardening (PRs #9 + #10, in flight): `lib/dossier-cli.sh` wraps
 each dossier verb with stderr capture and structured failure logging
@@ -31,59 +32,51 @@ to `HOOKS_ERROR_LOG`. A `make smoke` target fires all four hooks
 against a real dossier binary + tmp corpus in CI on every PR —
 catches mock-reality drift before merge.
 
-<!-- BEGIN dev-workbench (managed by /dev-workbench skill — re-run to refresh; hand-edits inside this block will be overwritten) -->
+<!-- BEGIN dev-workbench (managed by /dev-workbench skill - re-run to refresh; hand-edits inside this block will be overwritten) -->
 ## Dev workbench
 
-These MCPs, planes, and skills are available in any agent session on this machine; the harness injects each tool's signature, so this is the *map* — how they compose — not the per-verb manual. When the signal matches, call the verb; don't ask permission. Stuck on a *knowledge* question about another portfolio repo → `/consult` its steward; only *authority* questions (direction, spend, irreversible calls) go to the operator.
+These MCPs, planes, and skills are available in Claude and Codex sessions on this machine; each harness injects tool signatures, so this is the map of how they compose, not a second verb manual. **This is hooks - the cross-harness lifecycle bookkeeping layer.** When the signal matches, call the verb. Knowledge questions about another portfolio repo go to `/consult`; authority questions - direction, spend, credentials, irreversible actions - go to the operator.
 
 **MCPs (in-session):**
-- **dossier** — durable project memory: projects → phases → tasks → artifacts (markdown-on-disk).
-- **ship** — the driver engine: dispatch a task to a cloud/local agent and persist the run (dispatch→poll→judgment→land→record); inspect/cancel/replay.
-- **huddle** — *optional* multi-seat coordination (Slack-backed); off the normal PR path.
-- **playwright** — browser automation when a task needs a real DOM.
+- **dossier** - durable project memory: projects -> phases -> tasks -> artifacts.
+- **ship** - dispatch an agent and persist dispatch -> poll -> judgment -> land -> record.
+- **channel** - optional append-only agent message bus (`channel.post/read/list`); off the normal PR path and supersedes huddle.
+- **playwright** - browser automation when the task requires a real DOM.
 
-**Planes (workbench tenants — CLIs composed via exit codes + JSONL, not MCPs; `itsHabib/workbench` `cmd/<tool>`):**
-- **gate** — the flagship: authorization. Evaluates the *exact* PR head against an operator-minted grant + the escalate-only verifier ladder; hash-chained audit log; exit 0 pass / 1 blocked / 2 parked / 3 refused / 4 error. Findings ≠ authorization; gate is the merge boundary. State + keys stay `~/dev/gate`.
-- **flare** — notification: best-effort escalation sink over authoritative receipts → its own Slack app/channel. Pure sink; never gates; not built on huddle.
-- **console** — read-only local web view of gate's inbox (parked runs + grant ledger); shells the gate binary, owns no authoritative state.
-- **escalate** — the agent→human→agent back-channel: ingests the human's decision for a parked escalation and drives `gate resolve`.
+**Planes (workbench CLIs composed through exit codes and JSONL, not MCPs):**
+- **gate** - authorization at the exact PR head against an operator-minted grant; findings are not authorization. Exit 0 pass / 1 block / 2 park / 3 refuse / 4 error.
+- **flare** - best-effort notification sink over authoritative receipts; never gates.
+- **console** - read-only local view of Gate's inbox and grant ledger; explains, never decides.
+- **escalate** - agent -> human -> agent resolution channel for a parked Gate run.
 
 **Skills:**
-- **/work-driver** [+ **/work-driver-prep**] — drive agent-led impl end-to-end; prep builds the specs + conflict-batched plan.
-- **/pr-risk** — size how much review a PR needs (deterministic floor + agent advisory); upstream of the reviewers — it decides *how much*, they *do* it.
-- **/review-coordinator** [+ **/review-digest**] — consolidate the AI PR reviewers into one verdict (the judge over the finders); digest pre-triages the bot pile locally.
-- **/shipped** · **/status** · **/wip** — retrospective recap · in-flight update · cross-store live board.
-- **/consult** — summon a sibling repo's steward for a same-turn answer; knowledge → peer, authority → operator.
-- **/worktree-*** — add · list · remove · transfer · where, over `git worktree`.
+- **/work-driver** + **/work-driver-prep** - drive implementation; prep builds specs and conflict-safe batches.
+- **/pr-risk** - decide how much review a change needs; reviewers perform it.
+- **/review-coordinator** + **/review-digest** - consolidate reviewer findings; digest is the deterministic pre-pass.
+- **/shipped** / **/status** / **/wip** - retrospective / current-session / portfolio-liveness views.
+- **/consult** - ask a sibling repo's steward; knowledge to peers, authority to the operator.
+- **/worktree-*** - add / list / remove / transfer / locate isolated checkouts.
 
 ### The loop
 
-```
-dossier task → /worktree-add → spec → ship driver (cloud-first: dispatch→poll→judgment→land→record)
-   → PR + CI → /pr-risk tiers it → reviewers fire → /review-coordinator → one verdict
-   → gate evaluates the exact head → 0: governed-path authorization → merge
-   → authoritative receipts → dossier close-out → /worktree-remove
-        ↘ 2: gate PARKS → console / gate next surface it → human decides → escalate → gate resolve → re-judge
-        ↘ any attention/terminal receipt → best-effort flare sweep → Slack   (independent; never gates)
+```text
+dossier task -> /worktree-add -> spec -> ship driver (dispatch -> poll -> judgment -> land -> record)
+  -> PR + CI -> /pr-risk -> reviewer panel -> /review-coordinator -> one findings artifact
+  -> gate evaluates the exact head -> 0: emitted head-pinned merge command -> merge
+  -> authoritative receipts -> dossier close-out -> /worktree-remove
+       \-> 2: park -> console / gate next -> human decision -> escalate -> gate resolve -> gate next
+       \-> attention or terminal receipt -> flare -> Slack (best effort; never gates)
 ```
 
-`/work-driver` coordinates dispatch→poll→land and runs its own review triage inline. `/pr-risk` and `/review-coordinator` are steps you *invoke* — the driver→pr-risk / driver→coordinator wiring is planned, not built, so nothing here auto-delegates.
+`/work-driver` coordinates dispatch -> poll -> land and runs its own review triage inline. `/pr-risk` and `/review-coordinator` are explicit steps; the driver does not invoke them automatically.
 
 ### Why this shape
 
-Each layer owns one responsibility and is swappable without rippling: dossier owns *what needs doing*; worktree skills own *where work happens*; ship owns *drive an agent + persist the run*; pr-risk owns *how much review*; review-coordinator owns *consolidate the finders* (the bots are swappable under it); **gate owns *authorization* — is this exact head allowed to merge — which is not the reviewers' findings**; **escalate owns *resolution* — closing the agent→human→agent loop a park opens, without ever deciding for the human**; **console owns the *read-only view* of gate's inbox — it explains, never decides**; **flare owns *notification* — a best-effort sink on authoritative receipts, its own Slack app, never blocking the driver, never depending on huddle**; consult owns the stuck path; huddle owns optional multi-seat; playwright owns browser. The workbench is a menu, not a checklist — skip what a flow doesn't need.
+Each layer owns one responsibility and can be replaced without rippling: dossier owns what needs doing; worktree skills own where work happens; Ship owns agent execution and durable run state; pr-risk owns review depth; reviewer bots are swappable finders; review-coordinator owns their consolidated artifact; Gate alone owns exact-head merge authorization; Escalate carries a human resolution without deciding it; Console explains Gate state; Flare notifies; Consult handles cross-repo knowledge; Channel owns optional agent-to-agent messaging and supersedes Huddle. The workbench is a menu, not a checklist.
 
 ### The shape underneath
 
-These tools instantiate the redesign's five contract planes — coupled only by typed artifacts (`evidence → verdict → action`), never call stacks:
-
-- **State** (remembers) — dossier + gate's hash-chained log + run/verdict/grant/receipt artifacts; the append-only substrate.
-- **Execution** (does) — ship's driver; emits evidence, never judges itself.
-- **Verification** (judges) — the escalate-only ladder (deterministic floor → local → premium), monotone `worst`/`max`: gate's reducer, review-coordinator, triage/tracelens.
-- **Capability** (bounds) — scoped/timed grants; every effectful verb needs a live grant + a supporting verdict.
-- **Observability** (explains) — read-only, storeless views from State: flare, console, /wip, /shipped, /status.
-
-This section is the sixth — **Composition**: the agent + thin policy choosing which planes a task needs. gate is the flagship — the one tool spanning Verification + Capability, holding the merge boundary. The boundaries above *are* the plane laws, not conventions.
+The contract planes are **State** (dossier plus run, verdict, grant, and receipt artifacts), **Execution** (Ship), **Verification** (review and Gate's escalate-only verifier ladder), **Capability** (scoped operator-minted grants), and **Observability** (Console, Flare, /wip, /shipped, /status). This section is **Composition**. Planes share typed artifacts - evidence -> verdict -> action - rather than call stacks.
 <!-- END dev-workbench -->
 
 ## Architecture
@@ -91,6 +84,7 @@ This section is the sixth — **Composition**: the agent + thin policy choosing 
 ```
 scripts/<hook>.sh    PostToolUse entrypoint — one file per matcher
 lib/                 Shared helpers sourced by hooks
+  hook-event.sh        Claude/Codex event-envelope normalization
   dossier-cli.sh       wrappers around the dossier CLI verbs hooks use
   pr-lookup.sh         parse PR body → task slug/id
   ship-task-lookup.sh  resolve spec doc → task id + project slug
@@ -103,6 +97,12 @@ examples/            copy-pasteable settings.json hook snippets
 Hooks are pure bash + jq. No language runtime, no daemons, no external
 state — the operator's dossier corpus IS the state, and every hook
 write is idempotent on the dossier side.
+
+Cross-harness parity is part of the wire contract. Every hook that consumes a
+tool response needs fixtures for Claude and Codex shapes. In particular, Codex
+shell responses use `tool_response.output`, MCP responses may use
+`structuredContent`, and file writes arrive as `apply_patch` commands rather
+than Claude's `file_path` plus content fields.
 
 ## Develop
 
@@ -129,7 +129,7 @@ WSL on Windows).
 | **Soft-fail silent** | Missing git repo, malformed JSON, missing tools → `exit 0`. Never block the agent. Failures land in `~/.cache/hooks-errors.log` for triage rather than the agent transcript. |
 | **Idempotent verbs** | Dossier write verbs (`artifact_link`, `task_complete`) tolerate the hook + the prompt both firing — no double-writes. |
 | **Pure bash + git + jq** | No extra runtime deps beyond what's already on the operator's machine. |
-| **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/pers/hooks/...`. |
+| **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/dev/hooks/...`. |
 | **HOOK_NAME at top of every hook** | `lib/dossier-cli.sh`'s failure log uses it as the hook-name column; without it, failures log as `unknown-hook`. |
 
 ## Review-cycle discipline
@@ -173,7 +173,7 @@ _No code manifest detected — universals only; re-run `/eng-philo` once the rep
 - **Mock-reality drift.** `tests/fixtures/bin/dossier` and `tests/fixtures/mock-dossier.sh` mirror real dossier wire shape (`project` = id, `project_slug` = slug). When the dossier wire format changes, update the mocks here OR `make smoke` will catch it in CI. Don't author hook logic against a hand-crafted mock that's drifted from reality — that's how the 2026-05-23 silent-fail outage happened.
 - **Silent failure was the original design flaw.** Until 2026-05-27, every dossier wrapper call ended in `|| true` at the caller — failures left no trace and the only operator signal was "no artifacts ever appear in the corpus." `_dossier_run` in `lib/dossier-cli.sh` now captures stderr and logs every non-zero exit to `HOOKS_ERROR_LOG`. Don't undo this in the name of "cleaner code."
 - **PR body forms.** `lib/pr-lookup.sh` accepts four task-linkage forms: `Closes task/<slug>` (slash), `Closes task tsk_…` (space-id), `task: tsk_…` (yaml), and `` Closes task `<slug>` `` (backtick — the operator's standing convention). All four are exercised in bats; smoke uses the backtick form.
-- **Ship hooks (`posttool-ship-*.sh`) firing in real Claude Code sessions is unverified.** The 2026-05-27 "PostToolUse hooks not firing" gotcha was traced to two bugs in `lib/pr-lookup.sh` + `_infer_project_slug` that affect `posttool-gh-pr-{create,merge}.sh`; those are fixed in this commit. The ship hooks read from `tool_response.worktree.path` + `tool_response.docPath` and parse the spec's `**Related**` header — that path hasn't been re-verified end-to-end since the gh-side fix landed. If you fire a `mcp__ship__ship` or `mcp__ship__get_workflow_run` and don't see a `hook:ship-*`-actor artifact in the corpus, add a `date >> /tmp/hooks-fired.log` probe to confirm whether the hook is firing at all.
+- **Ship hooks (`posttool-ship-*.sh`) firing in real Claude or Codex sessions is unverified.** The 2026-05-27 "PostToolUse hooks not firing" gotcha was traced to two bugs in `lib/pr-lookup.sh` + `_infer_project_slug` that affect `posttool-gh-pr-{create,merge}.sh`; those are fixed in this commit. The ship hooks read the normalized MCP response plus the spec's `**Related**` header, and both harness envelopes have fixture coverage; the live lifecycle path still needs a smoke test in each harness. If you fire a Ship dispatch or get-run tool and don't see a `hook:ship-*` actor artifact in the corpus, add a `date >> /tmp/hooks-fired.log` probe to confirm whether the hook fired at all.
 - **`gh pr merge` from the GitHub web UI does NOT fire `posttool-gh-pr-merge.sh`.** Use `gh pr merge` from the agent session, or call `artifact_link` + `task_complete` manually.
 - **Windows binary lock.** When `DOSSIER_BIN` points at a debug-build dossier in a worktree, rebuilding requires a Claude Code restart to release the file lock. Switching to `cargo install --path ~/pers/dossier --force` (which writes to `~/.cargo/bin/dossier.exe`) sidesteps this — the installed binary isn't held by the running session.
 

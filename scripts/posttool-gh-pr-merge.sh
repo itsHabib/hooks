@@ -24,6 +24,8 @@ ROOT_DIR="$HOOK_DIR/.."
 source "$ROOT_DIR/lib/dossier-cli.sh"
 # shellcheck source=lib/pr-lookup.sh
 source "$ROOT_DIR/lib/pr-lookup.sh"
+# shellcheck source=lib/hook-event.sh
+source "$ROOT_DIR/lib/hook-event.sh"
 
 _warn() {
   printf '%s: %s\n' "$HOOK_NAME" "$*" >&2
@@ -46,34 +48,15 @@ _read_event() {
 }
 
 _tool_command() {
-  local event="$1"
-  jq -r '
-    if (.tool_input.command? // "") != "" then .tool_input.command
-    elif (.tool_input | type) == "string" then .tool_input
-    else empty end
-  ' <<<"$event"
+  hook_event_tool_command "$1"
 }
 
 _tool_output() {
-  local event="$1"
-  jq -r '
-    if (.tool_output? // "") != "" then .tool_output
-    else
-      [
-        (.tool_response.stdout // ""),
-        (.tool_response.stderr // "")
-      ] | join("")
-    end
-  ' <<<"$event"
+  hook_event_tool_output "$1"
 }
 
 _tool_exit_code() {
-  local event="$1"
-  jq -r '
-    if (.tool_response.exitCode? // null) != null then .tool_response.exitCode
-    elif (.tool_response.exit_code? // null) != null then .tool_response.exit_code
-    else 0 end
-  ' <<<"$event"
+  hook_event_tool_exit_code "$1"
 }
 
 _is_gh_pr_merge_command() {

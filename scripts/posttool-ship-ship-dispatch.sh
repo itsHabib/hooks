@@ -10,22 +10,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=../lib/ship-task-lookup.sh
 source "$ROOT_DIR/lib/ship-task-lookup.sh"
+# shellcheck source=../lib/hook-event.sh
+source "$ROOT_DIR/lib/hook-event.sh"
 
 DOSSIER="${DOSSIER:-dossier}"
 
 hook__tool_output_json() {
-  local event="$1"
-  # Claude Code's actual PostToolUse event uses `.tool_response` (see the
-  # gh-pr-merge / gh-pr-create hooks in this repo, which already handle
-  # both). `.tool_output` is the alternate name some specs use; accept
-  # either so the hook is robust regardless of which shape lands. Either
-  # may be a JSON-encoded string OR an object.
-  jq -c '
-    (.tool_response // .tool_output // {}) as $raw
-    | if ($raw | type) == "string" then ($raw | try fromjson catch {})
-      else $raw
-      end
-  ' <<<"$event"
+  hook_event_tool_output_json "$1"
 }
 
 hook__workflow_run_id() {
