@@ -31,6 +31,15 @@ event() {
       cwd:"/tmp", stop_hook_active:$reentrant}'
 }
 
+# event_camel is the Codex-shaped envelope: same fields, camelCase keys. Every
+# hook that consumes an event needs both shapes covered (cross-harness parity
+# is part of the wire contract).
+event_camel() {
+  jq -cn --arg t "${1:-}" --argjson reentrant "${2:-false}" \
+    '{hookEventName:"Stop", sessionId:"sess1234abcd", transcriptPath:$t,
+      cwd:"/tmp", stopHookActive:$reentrant}'
+}
+
 run_hook() {
   run bash -c "'$BATS_TEST_DIRNAME/../scripts/stop-discharge.sh' --no-timeout <<<'$1'"
 }
@@ -74,6 +83,25 @@ run_hook() {
 @test "a re-entrant Stop is a no-op" {
   local t; t="$(transcript tsk_aaa)"
   run_hook "$(event "$t" true)"
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "a Codex-shaped event gets the same discharge" {
+  local t; t="$(transcript tsk_aaa tsk_bbb)"
+  run_hook "$(event_camel "$t")"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"2 dossier task(s)"* ]]
+}
+
+# The camelCase re-entrancy guard matters twice: the jq check must catch it,
+# and the fast-path literal must too (a fall-through here is a silent perf
+# regression on every Codex session end, not a correctness bug).
+@test "a re-entrant Codex-shaped Stop is a no-op" {
+  local t; t="$(transcript tsk_aaa)"
+  run_hook "$(event_camel "$t" true)"
 
   [ "$status" -eq 0 ]
   [ -z "$output" ]

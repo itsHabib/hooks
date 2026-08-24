@@ -10,8 +10,10 @@ IFS= read -r -d '' _event || true
 [ -n "$_event" ] || exit 0
 
 # A Stop hook that acts on its own continuation drives an unbounded loop. This
-# is the first check for that reason, before anything can cost time.
-[[ $_event == *'"stop_hook_active":true'* ]] && exit 0
+# is the first check for that reason, before anything can cost time. Both
+# envelope shapes are matched so the Codex camelCase form takes the fast path
+# too instead of falling through to the jq check every time.
+[[ $_event == *'"stop_hook_active":true'* || $_event == *'"stopHookActive":true'* ]] && exit 0
 
 HOOK_NAME="stop-discharge"
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
@@ -40,7 +42,7 @@ _warn() {
 # as a LIST to cycle through, so a two-character delimiter alternates between
 # them and produces "a,b c,d".
 _join() {
-  sed "s|^$HOME|~|" | tr '\n' '\001' | sed 's/\x01$//; s/\x01/, /g'
+  sed "s|^${HOME:-/tmp}|~|" | tr '\n' '\001' | sed 's/\x01$//; s/\x01/, /g'
 }
 
 # _summarize renders the mechanical facts. Nothing here depends on the model
