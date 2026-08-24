@@ -87,8 +87,11 @@ discharge_summarize() {
 # exists on $task_id. Exit 0 means recorded, 1 means the session owes one.
 #
 # This reads the corpus files directly, and that is a deliberate, isolated
-# coupling: `task_list` returns a task's `body` but NOT its `## Notes` section,
-# so there is no CLI or MCP path that reads back what `task_update` writes.
+# coupling. Nothing on the CLI can answer the question: `task_list` returns a
+# task's `body` but NOT its `## Notes` section, and no other CLI verb reads a
+# note. The MCP's `task_get` does return notes — but it takes one id per call,
+# walks the whole corpus to find it, and is not reachable from bash anyway.
+#
 # Every substrate-dependent line in the discharge path is in this one function
 # — when the corpus stops being markdown on disk, this is what changes.
 discharge_recorded() {
