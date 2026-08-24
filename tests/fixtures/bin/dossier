@@ -49,6 +49,12 @@ case "$*" in
 ]
 EOF
     ;;
+  *task_update*)
+    # Real dossier task_update appends a note and echoes the updated task. Only
+    # the exit code reaches a hook, so record the call the same way the other
+    # write verbs are recorded and stay silent.
+    _record_call task_update "$*"
+    ;;
   *task_complete*)
     _record_call task_complete "$*"
     ;;
