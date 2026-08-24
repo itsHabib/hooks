@@ -26,47 +26,11 @@ source "$ROOT_DIR/lib/dossier-cli.sh"
 source "$ROOT_DIR/lib/hook-event.sh"
 # shellcheck source=lib/transcript.sh
 source "$ROOT_DIR/lib/transcript.sh"
-
-# At most this many tasks receive a discharge from one session. A session that
-# touched nine tasks did not conclude something about nine tasks, and writing to
-# all of them turns the note log into noise — which is how a store stops being
-# read, and a store that stops being read stops being written.
-DISCHARGE_MAX_TASKS="${DISCHARGE_MAX_TASKS:-3}"
+# shellcheck source=lib/discharge.sh
+source "$ROOT_DIR/lib/discharge.sh"
 
 _warn() {
   printf '%s: %s\n' "$HOOK_NAME" "$*" >&2
-}
-
-# _join renders stdin lines as one comma-separated line, with $HOME collapsed to
-# `~`. Note `paste -sd', '` does NOT do this: paste treats its delimiter string
-# as a LIST to cycle through, so a two-character delimiter alternates between
-# them and produces "a,b c,d".
-_join() {
-  sed "s|^${HOME:-/tmp}|~|" | tr '\n' '\001' | sed 's/\x01$//; s/\x01/, /g'
-}
-
-# _summarize renders the mechanical facts. Nothing here depends on the model
-# having cooperated, which is the whole point: these are true whether or not the
-# session remembered to say anything.
-_summarize() {
-  local transcript="$1" turns files prs written_count listed
-  turns="$(transcript_turn_count "$transcript")"
-  files="$(transcript_files_written "$transcript")"
-  prs="$(transcript_pr_urls "$transcript")"
-
-  printf 'Session ended after %s assistant turns.' "$turns"
-
-  if [ -n "$files" ]; then
-    written_count="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
-    listed="$(printf '%s\n' "$files" | head -5 | _join)"
-    printf ' Wrote %s file(s): %s' "$written_count" "$listed"
-    [ "$written_count" -gt 5 ] && printf ' (+%s more)' "$((written_count - 5))"
-    printf '.'
-  fi
-
-  if [ -n "$prs" ]; then
-    printf ' PRs touched: %s.' "$(printf '%s\n' "$prs" | head -5 | _join)"
-  fi
 }
 
 # _distill is the seam for a real conclusion — what the session DECIDED, which
@@ -98,29 +62,27 @@ _main() {
   transcript="$(hook_event_transcript_path "$event")"
   [ -n "$transcript" ] && [ -r "$transcript" ] || exit 0
 
-  # Resolution needs no mapping table and no inference: a session that called
-  # task_update or task_complete named the task in the call. Claiming at the
-  # END is a report about what happened; claiming at the start would be a
-  # prediction, and predictions are what agents skip.
+  # The "owes a discharge" rule lives in lib/discharge.sh so that the sweep,
+  # which counts what this hook failed to write, applies the identical test.
   while IFS= read -r id; do
     [ -n "$id" ] && task_ids+=("$id")
-  done < <(transcript_task_ids "$transcript" | head -n "$DISCHARGE_MAX_TASKS")
+  done < <(discharge_owed_task_ids "$transcript")
 
   # No task touched is the common case for a chat or exploration session. Say
   # nothing: a hook that comments on every exit is a hook people turn off.
   [ "${#task_ids[@]}" -gt 0 ] || exit 0
 
   session_id="$(hook_event_session_id "$event")"
-  short="${session_id:0:8}"
+  short="$(discharge_session_short "$session_id")"
   [ -n "$short" ] || short="unknown"
 
-  body="$(_summarize "$transcript")"
+  body="$(discharge_summarize "$transcript")"
   distilled="$(_distill "$transcript")"
   [ -n "$distilled" ] && body="$distilled"$'\n\n'"$body"
 
   local wrote=0 id
   for id in "${task_ids[@]}"; do
-    if dossier_task_update "$id" "[session ${short}] ${body}" "hook:${HOOK_NAME}"; then
+    if dossier_task_update "$id" "$(discharge_marker "$short") ${body}" "hook:${HOOK_NAME}"; then
       wrote=$((wrote + 1))
       continue
     fi
