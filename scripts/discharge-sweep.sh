@@ -109,7 +109,12 @@ _main() {
   # One dossier call covers every task in the corpus. Asking per session-task
   # pair would re-read the whole corpus once per pair — 40 reads for the
   # measured backlog — and dossier re-parses on every call.
-  INDEX_FILE="$(mktemp -t discharge-sweep)" || _die_infra "could not create a temp file"
+  # An explicit XXXXXX template, not `mktemp -t discharge-sweep`. BSD mktemp
+  # accepts a bare prefix after -t; GNU mktemp requires the X's and fails
+  # without them, so the bare form is a macOS-only script that passes locally
+  # and dies on Linux CI. Same family as the absent-`timeout` trap.
+  INDEX_FILE="$(mktemp "${TMPDIR:-/tmp}/discharge-sweep.XXXXXX")" \
+    || _die_infra "could not create a temp file"
   trap 'rm -f "$INDEX_FILE"' EXIT
   if ! discharge_index >"$INDEX_FILE"; then
     _die_infra "could not read recorded discharges from dossier (corpus: $DOSSIER_CORPUS)"
