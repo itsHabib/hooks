@@ -83,33 +83,39 @@ discharge_summarize() {
   fi
 }
 
-# discharge_recorded reports whether a discharge for $session_short already
-# exists on $task_id. Exit 0 means recorded, 1 means the session owes one.
+# ALL_STATUSES is every TaskStatus dossier defines. `task_list` returns live
+# tasks only unless told otherwise, and a task that was discharged and then
+# completed is exactly the one a sweep must not re-report — so the index asks
+# for all six by name. An explicit status list wins over the live-only default.
+DISCHARGE_ALL_STATUSES="todo,claimed,in_progress,blocked,done,cancelled"
+
+# discharge_index prints one "<task-id><TAB><session-short>" line per discharge
+# already recorded anywhere in the corpus.
 #
-# This reads the corpus files directly, and that is a deliberate, isolated
-# coupling. Nothing on the CLI can answer the question: `task_list` returns a
-# task's `body` but NOT its `## Notes` section, and no other CLI verb reads a
-# note. The MCP's `task_get` does return notes — but it takes one id per call,
-# walks the whole corpus to find it, and is not reachable from bash anyway.
+# One dossier call answers the question for every task at once. The earlier
+# version of this asked per task and read the corpus markdown directly, on the
+# stated grounds that no CLI verb returns a note. That was WRONG, and the way it
+# was wrong is worth keeping: `task_list`'s `notes` field is
+# `skip_serializing_if = "Vec::is_empty"`, so it is absent from any task that
+# has none — and sampling the first row of a list, which mostly has none,
+# reads exactly like a field that does not exist.
 #
-# Every substrate-dependent line in the discharge path is in this one function
-# — when the corpus stops being markdown on disk, this is what changes.
+# Reading through the CLI rather than the files also means this survives the
+# corpus becoming a database, which grepping markdown would not.
+discharge_index() {
+  dossier_task_list "" "" "$DISCHARGE_ALL_STATUSES" 2>/dev/null | jq -r '
+    .[] as $t
+    | ($t.notes // [])[]
+    | (.body | scan("\\[session ([0-9a-f]{8})\\]")) as $m
+    | "\($t.id)\t\($m[0])"
+  ' 2>/dev/null | sort -u
+}
+
+# discharge_recorded reports whether $index_file already holds a discharge for
+# $session_short on $task_id. Exit 0 means recorded, 1 means the session owes
+# one.
 discharge_recorded() {
-  local corpus="$1" task_id="$2" session_short="$3"
-  local marker
-  marker="$(discharge_marker "$session_short")"
-
-  [ -d "$corpus/projects" ] || return 1
-
-  # -F: the marker contains brackets, which are a character class to grep -E.
-  # -q with -r over the id-prefixed filename: task files are named
-  # `<task-id>-<slug>.md`, so the glob finds the file without a corpus walk.
-  local -a files=()
-  while IFS= read -r f; do
-    [ -n "$f" ] && files+=("$f")
-  done < <(find "$corpus/projects" -type f -name "${task_id}-*.md" 2>/dev/null)
-
-  [ "${#files[@]}" -gt 0 ] || return 1
-
-  grep -qF "$marker" "${files[@]}" 2>/dev/null
+  local index_file="$1" task_id="$2" session_short="$3"
+  [ -r "$index_file" ] || return 1
+  grep -qxF "$(printf '%s\t%s' "$task_id" "$session_short")" "$index_file"
 }

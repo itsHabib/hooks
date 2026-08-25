@@ -11,9 +11,12 @@ setup() {
   export HOOKS_ERROR_LOG="$HOOK_TEST_TMP/hooks-errors.log"
 
   export DISCHARGE_TRANSCRIPT_ROOT="$HOOK_TEST_TMP/transcripts"
-  export DOSSIER_CORPUS="$HOOK_TEST_TMP/corpus"
-  mkdir -p "$DISCHARGE_TRANSCRIPT_ROOT/-Users-mh-dev" \
-           "$DOSSIER_CORPUS/projects/demo/tasks"
+  mkdir -p "$DISCHARGE_TRANSCRIPT_ROOT/-Users-mh-dev"
+
+  # The sweep asks dossier for every task and reads their notes. Tests build
+  # that response here rather than laying out corpus files.
+  export DOSSIER_TEST_TASKS="$HOOK_TEST_TMP/tasks.json"
+  printf '[]\n' >"$DOSSIER_TEST_TASKS"
 
   SWEEP="$BATS_TEST_DIRNAME/../scripts/discharge-sweep.sh"
   chmod +x "$SWEEP"
@@ -42,15 +45,29 @@ session() {
   printf '%s' "$path"
 }
 
-# task writes a corpus task file. Any extra arguments become note lines, which
-# is how a test asserts that an already-recorded discharge is left alone.
+# task appends a task to the dossier response. Extra arguments become note
+# bodies, which is how a test asserts an already-recorded discharge is skipped.
+#
+# A task with no notes gets NO `notes` key, matching real dossier: the field is
+# `skip_serializing_if = "Vec::is_empty"`. Reproducing that here is deliberate —
+# a mock that always emitted the key would have hidden the bug this fixture
+# exists to prevent.
 task() {
   local id="$1"; shift
-  local path="$DOSSIER_CORPUS/projects/demo/tasks/$id-demo-task.md"
-  {
-    printf -- '---\nid: %s\nstatus: in_progress\n---\n\n## Notes\n\n' "$id"
-    printf -- '- %s\n' "$@"
-  } >"$path"
+  local notes="[]" body
+  for body in "$@"; do
+    notes="$(jq -c --arg b "$body" '. + [{actor:"hook:stop-discharge",body:$b,posted_at:"2026-08-23T00:00:00Z"}]' <<<"$notes")"
+  done
+
+  local task_json
+  task_json="$(jq -cn --arg id "$id" --argjson notes "$notes" '
+    {id:$id, project:"prj_DEMO", project_slug:"demo", slug:"demo-task",
+     title:"demo", status:"in_progress", body:""}
+    + (if ($notes|length) > 0 then {notes:$notes} else {} end)
+  ')"
+
+  jq -c --argjson t "$task_json" '. + [$t]' "$DOSSIER_TEST_TASKS" >"$DOSSIER_TEST_TASKS.tmp"
+  mv "$DOSSIER_TEST_TASKS.tmp" "$DOSSIER_TEST_TASKS"
 }
 
 dossier_log() {
@@ -94,7 +111,7 @@ dossier_log() {
 
 @test "a task that already carries this session's discharge is left alone" {
   session 11111111-aaaa-bbbb-cccc-000000000001 tsk_aaa >/dev/null
-  task tsk_aaa "2026-08-23T00:00:00Z — hook:stop-discharge: [session 11111111] Session ended after 4 assistant turns."
+  task tsk_aaa "[session 11111111] Session ended after 4 assistant turns."
 
   run "$SWEEP" --write
 
@@ -106,7 +123,7 @@ dossier_log() {
 
 @test "another session's discharge on the same task is not this session's" {
   session 11111111-aaaa-bbbb-cccc-000000000001 tsk_aaa >/dev/null
-  task tsk_aaa "2026-08-23T00:00:00Z — hook:stop-discharge: [session 99999999] Session ended after 4 assistant turns."
+  task tsk_aaa "[session 99999999] Session ended after 4 assistant turns."
 
   run "$SWEEP"
 
@@ -151,7 +168,7 @@ dossier_log() {
 
 @test "coverage counts session-task pairs, not sessions" {
   session 11111111-aaaa-bbbb-cccc-000000000001 tsk_aaa tsk_bbb >/dev/null
-  task tsk_aaa "2026-08-23T00:00:00Z — hook:stop-discharge: [session 11111111] done"
+  task tsk_aaa "[session 11111111] done"
   task tsk_bbb
 
   run "$SWEEP"
@@ -174,8 +191,17 @@ dossier_log() {
   session 11111111-aaaa-bbbb-cccc-000000000001 tsk_aaa >/dev/null
   task tsk_aaa
 
-  local stub="$HOOK_TEST_TMP/failing-dossier"
-  printf '#!/usr/bin/env bash\nexit 1\n' >"$stub"
+  # Reads fine, writes fail. A stub that failed everything would die at the
+  # index read instead, and this test would silently stop covering the write
+  # path it is named for.
+  local stub="$HOOK_TEST_TMP/write-failing-dossier"
+  cat >"$stub" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *task_list*) printf '[]\n'; exit 0 ;;
+  *) exit 1 ;;
+esac
+STUB
   chmod +x "$stub"
 
   DOSSIER_BIN="$stub" run "$SWEEP" --write
@@ -184,11 +210,20 @@ dossier_log() {
   [[ "$output" == *"dossier-update-failed"* ]]
 }
 
-@test "a missing corpus is an infrastructure error" {
-  DOSSIER_CORPUS="$HOOK_TEST_TMP/nope" run "$SWEEP"
+@test "a dossier that cannot be read is an infrastructure error" {
+  session 11111111-aaaa-bbbb-cccc-000000000001 tsk_aaa >/dev/null
+  task tsk_aaa
+
+  local stub="$HOOK_TEST_TMP/failing-dossier"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$stub"
+  chmod +x "$stub"
+
+  # Reading zero recorded discharges because dossier is down would report every
+  # session as a gap and, under --write, rewrite the whole backlog.
+  DOSSIER_BIN="$stub" run "$SWEEP"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"no dossier corpus"* ]]
+  [[ "$output" == *"recorded discharges"* ]]
 }
 
 @test "an absent transcript root is a quiet no-op, not a failure" {

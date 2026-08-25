@@ -18,7 +18,16 @@ ACTOR="hook:discharge-sweep"
 # Where Claude Code keeps session transcripts, one `<session-id>.jsonl` per
 # session, under a per-working-directory slug.
 TRANSCRIPT_ROOT="${DISCHARGE_TRANSCRIPT_ROOT:-$HOME/.claude/projects}"
-CORPUS="${DOSSIER_CORPUS:-$HOME/dev/dossier-state}"
+
+# dossier resolves its corpus by walking up for a `.dossier/` marker when
+# DOSSIER_CORPUS is unset. A sweep is run from wherever the operator happens to
+# be standing, which is usually not inside the corpus, so the default is named
+# rather than discovered. Session env normally sets this; a shell may not.
+export DOSSIER_CORPUS="${DOSSIER_CORPUS:-$HOME/dev/dossier-state}"
+
+# Where the already-recorded discharges are cached for this run. Built once from
+# one dossier call; see discharge_index.
+INDEX_FILE=""
 
 # A transcript still being appended to belongs to a session that may not be
 # over. Sixty minutes is well past any turn's think time and well short of the
@@ -96,7 +105,15 @@ _main() {
   local owed=0 covered=0 gaps=0 backfilled=0 failed=0 sessions_seen=0
 
   command -v jq >/dev/null 2>&1 || _die_infra "jq not found"
-  [ -d "$CORPUS/projects" ] || _die_infra "no dossier corpus at $CORPUS"
+
+  # One dossier call covers every task in the corpus. Asking per session-task
+  # pair would re-read the whole corpus once per pair — 40 reads for the
+  # measured backlog — and dossier re-parses on every call.
+  INDEX_FILE="$(mktemp -t discharge-sweep)" || _die_infra "could not create a temp file"
+  trap 'rm -f "$INDEX_FILE"' EXIT
+  if ! discharge_index >"$INDEX_FILE"; then
+    _die_infra "could not read recorded discharges from dossier (corpus: $DOSSIER_CORPUS)"
+  fi
 
   while IFS= read -r transcript; do
     [ -n "$transcript" ] || continue
@@ -118,7 +135,7 @@ _main() {
     for id in "${task_ids[@]}"; do
       owed=$((owed + 1))
 
-      if discharge_recorded "$CORPUS" "$id" "$short"; then
+      if discharge_recorded "$INDEX_FILE" "$id" "$short"; then
         covered=$((covered + 1))
         state="discharged"
       elif [ "$WRITE" -eq 0 ]; then
