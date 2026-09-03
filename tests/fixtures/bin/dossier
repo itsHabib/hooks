@@ -24,6 +24,16 @@ _record_call() {
 
 case "$*" in
   *task_list*)
+    # A test that needs specific tasks (with notes) points
+    # DOSSIER_TEST_TASKS at a JSON file and gets it back verbatim. Real
+    # `task_list` omits the `notes` key entirely on a task that has none
+    # (`skip_serializing_if = "Vec::is_empty"`), so fixtures must be able to
+    # exercise both shapes — a mock that always emits `notes` would hide the
+    # exact ambiguity that caused a wrong reading of this API.
+    if [[ -n "${DOSSIER_TEST_TASKS:-}" && -r "${DOSSIER_TEST_TASKS}" ]]; then
+      cat "${DOSSIER_TEST_TASKS}"
+      exit 0
+    fi
     # Real dossier task_list returns `project` as the project id (prj_…)
     # and `project_slug` as the slug. Mirror that shape so hook regressions
     # that revert to reading `.project` are caught by the existing
