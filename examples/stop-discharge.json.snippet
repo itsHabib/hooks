@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "DOSSIER_BIN=\"$(command -v dossier)\" DOSSIER_CORPUS=\"$HOME/dev/dossier-state\" bash \"$HOME/dev/hooks/scripts/stop-discharge.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
