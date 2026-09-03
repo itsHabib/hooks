@@ -233,6 +233,26 @@ STUB
   [[ "$output" == *"no session in the last"* ]]
 }
 
+# A non-numeric window makes `find` fail with its stderr discarded, which
+# would report as "no sessions found" and exit green: a typo as a false
+# coverage number. Refuse it up front instead.
+@test "a non-numeric scan window is refused, not read as an empty scan" {
+  session 11111111-aaaa-bbbb-cccc-000000000001 tsk_aaa >/dev/null
+  task tsk_aaa
+
+  run "$SWEEP" --since-days banana
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--since-days needs a non-negative integer"* ]]
+
+  run "$SWEEP" --quiet-minutes nope
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--quiet-minutes needs a non-negative integer"* ]]
+
+  run "$SWEEP" --since-days
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--since-days needs a non-negative integer"* ]]
+}
+
 @test "an unknown argument is refused rather than ignored" {
   run "$SWEEP" --backfill-everything
 

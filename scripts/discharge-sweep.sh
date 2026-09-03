@@ -67,6 +67,15 @@ _die_infra() {
   exit 1
 }
 
+# _require_count refuses anything but a non-negative integer for a scan-window
+# flag. `find -mmin banana` fails, and with its stderr discarded that failure
+# reads exactly like "no sessions found" — a typo becoming a false coverage
+# number is the one outcome a measurement script must not produce.
+_require_count() {
+  local flag="$1" value="$2"
+  [[ $value =~ ^[0-9]+$ ]] || _die_infra "$flag needs a non-negative integer, got: ${value:-<empty>}"
+}
+
 # _sessions prints the transcripts worth considering, newest last.
 #
 # `subagents/` holds workflow and subagent journals. Those are not sessions:
@@ -100,7 +109,7 @@ _backfill() {
 }
 
 _main() {
-  local transcript short body row
+  local transcript short body
   local -a summary=()
   local owed=0 covered=0 gaps=0 backfilled=0 failed=0 sessions_seen=0
 
@@ -194,12 +203,12 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --quiet-minutes)
       QUIET_MINUTES="${2:-}"
-      [ -n "$QUIET_MINUTES" ] || _die_infra "--quiet-minutes needs a value"
+      _require_count --quiet-minutes "$QUIET_MINUTES"
       shift 2
       ;;
     --since-days)
       SINCE_DAYS="${2:-}"
-      [ -n "$SINCE_DAYS" ] || _die_infra "--since-days needs a value"
+      _require_count --since-days "$SINCE_DAYS"
       shift 2
       ;;
     --write)
