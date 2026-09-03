@@ -29,6 +29,19 @@ source "$ROOT_DIR/lib/transcript.sh"
 # shellcheck source=lib/discharge.sh
 source "$ROOT_DIR/lib/discharge.sh"
 
+# The whole hook is bounded by this many seconds (see the tail of this file).
+# The optional fold below is the one step that can run long, so its own budget
+# is clamped to leave room for the dossier write that follows it. A fold that
+# outlives the hook takes the mark with it, which is the one thing that must
+# not happen — the mark is the point, the fold is the garnish.
+DISCHARGE_HOOK_TIMEOUT=10
+
+# Stop fires after EVERY assistant response, not only at session close, and
+# each time it sees the cumulative transcript. Without a record of what this
+# session already discharged, a long session would append the same note to the
+# same task once per turn. One line per task id, under a per-session file.
+DISCHARGE_STATE_DIR="${HOOKS_STATE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/hooks}/stop-discharge"
+
 _warn() {
   printf '%s: %s\n' "$HOOK_NAME" "$*" >&2
 }
@@ -41,16 +54,43 @@ _warn() {
 # when explicitly configured, under its own timeout, and its failure is silent.
 # The mark is written either way.
 _distill() {
-  local transcript="$1"
+  local transcript="$1" budget
   [ -n "${DISCHARGE_FOLD_CMD:-}" ] || return 0
   # Same absent-timeout caveat as the tail of this file. Without the binary the
   # fold runs unbounded, so it stays opt-in and the caller keeps the mark.
   if command -v timeout >/dev/null 2>&1; then
-    timeout "${DISCHARGE_FOLD_TIMEOUT:-20}" \
+    budget="$(_fold_budget)"
+    timeout "$budget" \
       env DISCHARGE_TRANSCRIPT="$transcript" sh -c "$DISCHARGE_FOLD_CMD" 2>/dev/null
     return 0
   fi
   env DISCHARGE_TRANSCRIPT="$transcript" sh -c "$DISCHARGE_FOLD_CMD" 2>/dev/null
+}
+
+# _fold_budget prints the fold's deadline in seconds: the configured value,
+# clamped below the hook's own deadline so the write after it still runs.
+_fold_budget() {
+  local want="${DISCHARGE_FOLD_TIMEOUT:-5}" ceiling=$((DISCHARGE_HOOK_TIMEOUT - 3))
+  [[ $want =~ ^[0-9]+$ ]] || want="$ceiling"
+  [ "$want" -le "$ceiling" ] || want="$ceiling"
+  printf '%s' "$want"
+}
+
+# _already_discharged reports whether this session has already written a
+# discharge to $task_id (exit 0) or still owes one (exit 1). A session with no
+# id cannot be tracked and is treated as owing.
+_already_discharged() {
+  local session_id="$1" task_id="$2"
+  [ -n "$session_id" ] || return 1
+  [ -r "$DISCHARGE_STATE_DIR/$session_id" ] || return 1
+  grep -qxF "$task_id" "$DISCHARGE_STATE_DIR/$session_id"
+}
+
+_remember_discharged() {
+  local session_id="$1" task_id="$2"
+  [ -n "$session_id" ] || return 0
+  mkdir -p "$DISCHARGE_STATE_DIR" 2>/dev/null || return 0
+  printf '%s\n' "$task_id" >>"$DISCHARGE_STATE_DIR/$session_id" 2>/dev/null || true
 }
 
 _main() {
@@ -76,13 +116,24 @@ _main() {
   short="$(discharge_session_short "$session_id")"
   [ -n "$short" ] || short="unknown"
 
+  # Each task gets one discharge per session. Later Stops in the same session
+  # see the same task ids again and must not write again.
+  local -a owed=() id
+  for id in "${task_ids[@]}"; do
+    _already_discharged "$session_id" "$id" || owed+=("$id")
+  done
+  [ "${#owed[@]}" -gt 0 ] || exit 0
+
   body="$(discharge_summarize "$transcript")"
   distilled="$(_distill "$transcript")"
-  [ -n "$distilled" ] && body="$distilled"$'\n\n'"$body"
+  [ -n "$distilled" ] && body="$distilled"$'
 
-  local wrote=0 id
-  for id in "${task_ids[@]}"; do
+'"$body"
+
+  local wrote=0
+  for id in "${owed[@]}"; do
     if dossier_task_update "$id" "$(discharge_marker "$short") ${body}" "hook:${HOOK_NAME}"; then
+      _remember_discharged "$session_id" "$id"
       wrote=$((wrote + 1))
       continue
     fi
@@ -107,7 +158,7 @@ fi
 # a hook that silently never runs its body — which looks exactly like a hook
 # that ran and found nothing.
 if command -v timeout >/dev/null 2>&1; then
-  timeout 10 bash "$0" --no-timeout "$@" <<<"$_event" || exit 0
+  timeout "$DISCHARGE_HOOK_TIMEOUT" bash "$0" --no-timeout "$@" <<<"$_event" || exit 0
   exit 0
 fi
 _main "$@" || exit 0

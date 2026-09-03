@@ -68,7 +68,7 @@ discharge_summarize() {
   files="$(transcript_files_written "$transcript")"
   prs="$(transcript_pr_urls "$transcript")"
 
-  printf 'Session ended after %s assistant turns.' "$turns"
+  printf 'After %s assistant turns.' "$turns"
 
   if [ -n "$files" ]; then
     written_count="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
