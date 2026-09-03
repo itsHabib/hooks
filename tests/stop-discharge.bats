@@ -10,6 +10,12 @@ setup() {
   rm -rf "$HOOK_TEST_TMP"
   mkdir -p "$HOOK_TEST_TMP"
   export HOOKS_ERROR_LOG="$HOOK_TEST_TMP/hooks-errors.log"
+  export HOOKS_STATE_DIR="$HOOK_TEST_TMP/state"
+}
+
+# record appends one raw JSONL record to the transcript at $1.
+record() {
+  printf '%s\n' "$2" >>"$1"
 }
 
 # transcript writes a JSONL transcript containing one tool_use per task id, plus
@@ -67,6 +73,73 @@ run_hook() {
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"1 dossier task(s)"* ]]
+}
+
+# Stop fires after every response, and each one sees the cumulative transcript.
+# The second Stop of a session owes nothing on a task the first already paid.
+@test "a second Stop in the same session does not discharge the same task twice" {
+  local t; t="$(transcript tsk_aaa)"
+  run_hook "$(event "$t")"
+  [[ "$output" == *"1 dossier task(s)"* ]]
+
+  run_hook "$(event "$t")"
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "a task first touched after an earlier discharge still gets its own" {
+  local t; t="$(transcript tsk_aaa)"
+  run_hook "$(event "$t")"
+
+  t="$(transcript tsk_aaa tsk_bbb)"
+  run_hook "$(event "$t")"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 dossier task(s)"* ]]
+}
+
+# The fold's deadline must sit inside the hook's, or the fold takes the mark
+# down with it when the outer timeout fires first.
+@test "a fold that outlives its clamped budget still leaves the mark" {
+  command -v timeout >/dev/null 2>&1 || skip "needs GNU timeout"
+  local t; t="$(transcript tsk_aaa)"
+  local started; started="$(date +%s)"
+
+  run bash -c "DISCHARGE_FOLD_CMD='sleep 30' DISCHARGE_FOLD_TIMEOUT=30 \
+    '$BATS_TEST_DIRNAME/../scripts/stop-discharge.sh' --no-timeout <<<'$(event "$t")'"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 dossier task(s)"* ]]
+  [ "$(( $(date +%s) - started ))" -lt 10 ]
+}
+
+@test "a PR URL in prose is not a PR touched; one in a tool call is" {
+  local t="$HOOK_TEST_TMP/prs.jsonl"
+  : >"$t"
+  record "$t" '{"type":"user","message":{"content":"look at https://github.com/o/r/pull/1 please"}}'
+  record "$t" '{"type":"assistant","message":{"content":[{"type":"text","text":"see https://github.com/o/r/pull/2"}]}}'
+  record "$t" '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"gh pr view https://github.com/o/r/pull/3"}}]}}'
+  record "$t" '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"x","content":"https://github.com/o/r/pull/4"}]}}'
+  source "$BATS_TEST_DIRNAME/../lib/transcript.sh"
+
+  run transcript_pr_urls "$t"
+
+  [ "$output" == $'https://github.com/o/r/pull/3\nhttps://github.com/o/r/pull/4' ]
+}
+
+@test "an edit whose result errored is not a file written" {
+  local t="$HOOK_TEST_TMP/edits.jsonl"
+  : >"$t"
+  record "$t" '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Edit","input":{"file_path":"/w/stale.sh"}}]}}'
+  record "$t" '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"old_string not found"}]}}'
+  record "$t" '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"Write","input":{"file_path":"/w/ok.sh"}}]}}'
+  record "$t" '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]}}'
+  source "$BATS_TEST_DIRNAME/../lib/transcript.sh"
+
+  run transcript_files_written "$t"
+
+  [ "$output" == "/w/ok.sh" ]
 }
 
 # A hook that comments on every exit is a hook people turn off, so a session
