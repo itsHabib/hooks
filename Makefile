@@ -17,7 +17,8 @@ test:
 			mkdir -p .deps; \
 			git clone --depth 1 $(BATS_CORE_REPO) .deps/bats-core; \
 		fi; \
-		$(BATS) tests/; \
+		$(BATS) tests/ && \
+		bash tests/mode-hygiene.sh; \
 	else \
 		echo "no bats tests yet — added by follow-up PRs as hooks land"; \
 	fi
@@ -28,6 +29,7 @@ test:
 # sibling at ../dossier/target/{release,debug}/dossier(.exe).
 smoke:
 	@bash tests/smoke.sh
+	@bash tests/mode-hygiene.sh
 
 # Validation must never rewrite tracked executable bits. Compare HEAD with the
 # real index, then with a temporary index populated from the working tree so a
@@ -35,5 +37,6 @@ smoke:
 mode-hygiene:
 	@bash tests/mode-hygiene.sh
 
-# CI gate: bats (fast, mock-based) + smoke (slow, live-corpus).
-check: test smoke mode-hygiene
+# CI gate: bats (fast, mock-based) + smoke (slow, live-corpus). Each target
+# checks mode hygiene independently because CI invokes them as separate steps.
+check: test smoke
