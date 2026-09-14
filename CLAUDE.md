@@ -162,7 +162,7 @@ _No code manifest detected — universals only; re-run `/eng-philo` once the rep
 - PR body must close a dossier task with the backtick form: `` Closes task `<slug>` ``.
 - Request Copilot, `@codex review`, and `@claude review`. (`@claude review` on this repo needs `CLAUDE_CODE_OAUTH_TOKEN` set in repo secrets; on `itsHabib/hooks` specifically that secret is already in place — but worth confirming if reviews don't fire.)
 - `make check` must pass before merge — CI gates on both bats and smoke.
-- Address review comments in cycles (~3 cap before merging anyway). Opinionated is fine; don't take comments blindly.
+- Fix verified review findings and re-review when the new diff warrants it. Opinionated is fine; don't take comments blindly.
 
 <!-- local-offload:start -->
 ## Local-first offload
