@@ -1,6 +1,9 @@
 # hooks — agent guide
 
-Portfolio-managed context for Codex / AGENTS-aware harnesses. For this repo's own project detail, read **CLAUDE.md**.
+Portfolio-managed context for Codex / AGENTS-aware harnesses. Read **CLAUDE.md**
+for development contracts and [docs/hook-ownership.md](docs/hook-ownership.md)
+for source ownership and observed installation gaps. `bash scripts/audit-wiring.sh`
+inspects configuration without executing hooks. Bookkeeping soft-fails; guards can deny.
 
 <!-- BEGIN dev-workbench (managed by /dev-workbench skill - re-run to refresh; hand-edits inside this block will be overwritten) -->
 ## Dev workbench
