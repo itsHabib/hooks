@@ -2,35 +2,19 @@
 
 Notes for agents working on this repo. Read before touching code.
 
-hooks is the operator's **LLM-side git hook layer** — deterministic
-harness-level scripts that race the agent to mechanical
-metadata-ferrying between dossier, ship, and gh. Each script in
-`scripts/` handles one `PostToolUse` event, reads event JSON from
-stdin, resolves the linked dossier task, and writes back via the
-dossier CLI. Hooks must never block the agent: they soft-fail silent
-on every error path; failures land in `~/.cache/hooks-errors.log` for
-triage rather than the agent's transcript.
+Hooks owns event-specific guards, bookkeeping and guide reminders. Read the
+[README](README.md) for the full script inventory and
+[ownership map](docs/hook-ownership.md) for current Fleet / codexguard integration.
+Fleet's lifecycle implementation stays in Workbench.
 
-## State
+Bookkeeping hooks soft-fail and log Dossier failures to `HOOKS_ERROR_LOG`.
+PreToolUse guards can deny matched actions with exit 2. Keep those contracts distinct.
+`lib/hook-event.sh` normalizes supported Claude/Codex response envelopes; fixture
+support does not establish installation or live delivery on either harness.
 
-Wave-1 (integration-layer) shipped 2026-05-22 → 27. Four hooks live:
-
-- `posttool-ship-ship-dispatch.sh` — notes ship dispatches into the linked task; on cloud runs also links the Cursor agent watch URL (`cursor.com/agents/<bc-id>`) as a `kind:url` artifact
-- `posttool-ship-getrun.sh` — links terminal ship runs as `kind:run` artifacts (also appends a terminal note on `failed` / `cancelled`)
-- `posttool-gh-pr-create.sh` — auto-links new PRs as `kind:pr` artifacts
-- `posttool-gh-pr-merge.sh` — auto-completes the linked task + links the merge commit as `kind:commit`
-
-The hooks are wired in Claude through `~/.claude/settings.json` and in Codex
-through `~/.codex/hooks.json`, using the same event names and matchers. The
-shared `lib/hook-event.sh` normalizes harness response envelopes; policy must
-not branch on the emitting harness. Session env sets `DOSSIER_BIN` and
-`DOSSIER_CORPUS` so the hook subprocess hits the real dossier corpus.
-
-v1-hardening (PRs #9 + #10, in flight): `lib/dossier-cli.sh` wraps
-each dossier verb with stderr capture and structured failure logging
-to `HOOKS_ERROR_LOG`. A `make smoke` target fires all four hooks
-against a real dossier binary + tmp corpus in CI on every PR —
-catches mock-reality drift before merge.
+Use `bash scripts/audit-wiring.sh` to inspect global configuration references without
+executing hooks. Never copy a user's full settings or environment into public docs.
+The audit doesn't inspect project/plugin settings or prove hooks are trusted or enabled.
 
 <!-- BEGIN dev-workbench (managed by /dev-workbench skill - re-run to refresh; hand-edits inside this block will be overwritten) -->
 ## Dev workbench
@@ -82,7 +66,7 @@ The contract planes are **State** (dossier plus run, verdict, grant, and receipt
 ## Architecture
 
 ```
-scripts/<hook>.sh    PostToolUse entrypoint — one file per matcher
+scripts/<hook>.sh    Event entrypoint or explicit maintenance command
 lib/                 Shared helpers sourced by hooks
   hook-event.sh        Claude/Codex event-envelope normalization
   dossier-cli.sh       wrappers around the dossier CLI verbs hooks use
@@ -94,9 +78,8 @@ tests/               bats suite (mock-based) + smoke.sh (live-corpus)
 examples/            copy-pasteable settings.json hook snippets
 ```
 
-Hooks are pure bash + jq. No language runtime, no daemons, no external
-state — the operator's dossier corpus IS the state, and every hook
-write is idempotent on the dossier side.
+Hooks use Bash + jq. The Dojo scrub guard requires Bash 4+. Bookkeeping writes
+to the configured Dossier corpus and relies on idempotent Dossier verbs.
 
 Cross-harness parity is part of the wire contract. Every hook that consumes a
 tool response needs fixtures for Claude and Codex shapes. In particular, Codex
@@ -126,7 +109,7 @@ WSL on Windows).
 |---|---|
 | **Stdout = context** | Hook output is injected into the model's context. Keep it short and actionable; emit only on auto-link / soft-warn paths. |
 | **Speed budget ≤ 3s** | Settings.json wraps each hook with `timeout: 5`. Slow hooks degrade every session. |
-| **Soft-fail silent** | Missing git repo, malformed JSON, missing tools → `exit 0`. Never block the agent. Failures land in `~/.cache/hooks-errors.log` for triage rather than the agent transcript. |
+| **Bookkeeping soft-fails** | Recoverable bookkeeping errors return success; Dossier failures are logged. Guards may return exit 2. The read-only audit returns nonzero for missing/invalid config. |
 | **Idempotent verbs** | Dossier write verbs (`artifact_link`, `task_complete`) tolerate the hook + the prompt both firing — no double-writes. |
 | **Pure bash + git + jq** | No extra runtime deps beyond what's already on the operator's machine. |
 | **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/dev/hooks/...`. |

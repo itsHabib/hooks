@@ -3,99 +3,91 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/itsHabib/hooks/actions/workflows/ci.yml/badge.svg)](https://github.com/itsHabib/hooks/actions/workflows/ci.yml)
 
-LLM-side git hooks for the personal workbench — deterministic harness-level scripts that race the agent to mechanical metadata-ferrying between dossier / ship / gh.
+Small Claude Code and Codex hook scripts for guards, task bookkeeping and agent-guide
+reminders. Each reads one event from stdin. Shared helpers normalize supported
+harness envelopes; tests cover their differences.
 
-## What this is
+## What's here
 
-The **hooks** layer sits between Claude Code or Codex lifecycle hooks and your local tooling. Each script in `scripts/` handles one lifecycle event (`PreToolUse`, `PostToolUse`, etc.), reads event JSON from stdin, and optionally emits short context blocks to stdout for the model. `lib/hook-event.sh` normalizes the envelope differences so hook policy stays harness-neutral.
+| Hook | Event | Job |
+|---|---|---|
+| [pretool-guard](scripts/pretool-guard.sh) | PreToolUse | Shape-check sensitive shell commands; deny matches with a remedy. |
+| [dojo-scrub-guard](scripts/pretool-dojo-scrub-guard.sh) | PreToolUse | Check lesson writes for work-data identifiers, including supported `apply_patch` edits. |
+| [gh-pr-create](scripts/posttool-gh-pr-create.sh) | PostToolUse | Link a new PR to its Dossier task. |
+| [gh-pr-merge](scripts/posttool-gh-pr-merge.sh) | PostToolUse | Complete the linked task and record merge evidence. |
+| [gate-verdict](scripts/posttool-gate-verdict.sh) | PostToolUse | Record a passing `gate gate` result against the linked task and head. |
+| [ship-dispatch](scripts/posttool-ship-ship-dispatch.sh) | PostToolUse | Record a Ship dispatch against the task. |
+| [ship-getrun](scripts/posttool-ship-getrun.sh) | PostToolUse | Record terminal Ship run artifacts. |
+| [agent-guide-parity](scripts/posttool-agent-guide-parity.sh) | PostToolUse | Advise when paired `AGENTS.md` / `CLAUDE.md` guidance drifts. |
 
-Hooks integrate with the workbench MCPs (dossier, ship) and the GitHub CLI to ferry metadata between them on deterministic triggers — closing the gap between "agent did the thing" and "the thing got recorded."
+[sweep-merged.sh](scripts/sweep-merged.sh) reconciles missed merge bookkeeping.
+[audit-wiring.sh](scripts/audit-wiring.sh) reports local configuration references.
+Neither is a lifecycle hook.
 
-Hooks land one per PR with bats tests and an `examples/` settings snippet.
+**Fleet's current lifecycle hooks live in Workbench.** Use `fleet hook claude` or
+`fleet hook codex` through its own installation workflow. See the
+[ownership map](docs/hook-ownership.md) for Fleet, codexguard and older adapters.
 
-### `posttool-gh-pr-merge.sh`
+## Check your wiring
 
-Runs on `PostToolUse` when the agent executes `gh pr merge`. If the merged PR body contains `Closes task/<slug>` (or `Closes task tsk_…`), the hook auto-completes the dossier task, links the merge commit, and records a State-substrate `receipt` artifact (`meta`: `event=merge`, `pr`, `merge_sha`, `head_sha`, and the authorizing `verdict` art id when one is found). Include that `Closes task` line in PR bodies opened from worktrees.
-
-**Limitation:** merges done in the GitHub web UI do not fire this hook — use `gh pr merge` from the agent session (or complete/link manually).
-
-### `posttool-gate-verdict.sh`
-
-Runs on `PostToolUse` when the agent executes `gate gate` and gate returns `decision: pass`. Records a State-substrate `verdict` artifact at decision time (`ref`: `gate://<repo>/pr/<n>/<run>`, `meta`: `source=gate`, `outcome`, `pr`, `head_sha`, `grant`, `tier`), anchored to the PR's `Closes task` linkage. This is the verdict half of the substrate-autowiring pair; the merge hook's `receipt` joins back to it on `head_sha`. escalate/block/refuse decisions are skipped.
-
-**Limitation:** only agent-run `gate gate` calls fire this — a `gate gate` run in a raw shell won't. The universal anchor for the verdict fact is gate itself; this hook is the local convenience path.
-
-### `posttool-agent-guide-parity.sh`
-
-Runs after Claude or Codex edits a `CLAUDE.md` or `AGENTS.md`. It reminds the agent when only
-one member of a pair changed, and calls out a missing counterpart, a forwarding-only Codex shim,
-or drift in the shared `dev-workbench` / `eng-philo` managed blocks. It is advisory and never
-blocks an edit; the paired diff remains visible to the operator. Wire the same hook into both
-harnesses using `examples/posttool-agent-guide-parity.json.snippet`.
-
-## Prerequisites
-
-- **dossier** — https://github.com/itsHabib/dossier. Install the binary (`cargo install --git https://github.com/itsHabib/dossier`) and create a corpus dir with `<corpus>/.dossier/` as the marker. Hooks find it via `DOSSIER_BIN` + `DOSSIER_CORPUS` env vars set in your settings.json.
-- **jq** — `jq >= 1.6` recommended (`brew install jq` / `scoop install jq` / `apt install jq`).
-- **gh** — GitHub CLI authenticated (`gh auth status` must succeed) for the `posttool-gh-*` hooks.
-- **bash** — Git Bash on Windows; available on Linux out of the box; macOS ships bash 3.2 by default (`brew install bash` for a current build if needed).
-
-Optionally:
-- **ship** MCP if you want the `posttool-ship-*` hooks to fire (those listen on `mcp__ship__ship` / `mcp__ship__get_workflow_run` PostToolUse events).
-
-## Wiring hooks
-
-The hook shape is shared. Put it under `hooks` in `~/.claude/settings.json`, or use it as `~/.codex/hooks.json`. Replace `$HOME/dev/hooks` if your clone lives elsewhere:
-
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          { "type": "command", "command": "bash \"$HOME/dev/hooks/scripts/posttool-gh-pr-merge.sh\"", "timeout": 5 }
-        ]
-      }
-    ]
-  }
-}
+```sh
+bash scripts/audit-wiring.sh
+# Or inspect saved configurations:
+bash scripts/audit-wiring.sh --claude /path/settings.json --codex /path/hooks.json
 ```
 
-Per-hook snippets for the other hooks live in `examples/`. Merge them into the same `hooks` block by combining their `PreToolUse` or `PostToolUse` entries.
+The audit reads configuration without executing commands or changing settings. It
+reports textual references, their event/matcher and Fleet command counts. Missing or
+malformed files return a nonzero exit. `not-referenced` means absent from the inspected
+file, which can be intentional. It doesn't inspect project/plugin settings, prove a
+matcher fires, or establish trust, enablement or successful execution.
 
-Claude Code users merge the relevant blocks into `~/.claude/settings.json`; Codex users put the merged document in `~/.codex/hooks.json`. Do not replace unrelated settings. Set `DOSSIER_BIN` and `DOSSIER_CORPUS` in Claude's top-level `env` block or Codex's `[shell_environment_policy.set]` config table. Codex requires reviewing changed command hooks with `/hooks` before they run.
+## Wire the pieces you need
 
-After editing settings, start a fresh session so the harness reloads hook configuration.
+1. Choose a hook from the table and its [example](examples/).
+2. Merge its event entries into Claude's `~/.claude/settings.json` or Codex's
+   `~/.codex/hooks.json`. Preserve existing hooks, especially Fleet's lifecycle entries.
+3. Replace the clone path and set `DOSSIER_BIN` / `DOSSIER_CORPUS` for bookkeeping
+   hooks. Use a temporary corpus for validation.
+4. Reload the harness, complete its command-hook trust flow where required, and
+   exercise the event. Check the resulting artifact or diagnostic.
 
-## Conventions
+Examples are opt-in fragments, not full settings files. The event-envelope tests
+cover the supported shapes; configuration on one harness doesn't install it on the
+other. [The reconciliation notes](docs/hook-ownership.md#observed-installation-gaps)
+show a concrete case where that distinction matters.
 
-| Rule | Rationale |
-|---|---|
-| **Stdout = context** | Hook output is injected into the model's context. Keep it short and actionable. |
-| **Speed budget ≤ 3s** | Settings.json wraps each hook with `timeout: 5` as a safety margin; hooks should aim well under that. Slow hooks degrade every session. |
-| **Fail silent on edge cases** | Missing git repo, malformed JSON, missing tools → exit 0 with no output. Never block the agent. |
-| **Idempotent verbs** | When a hook ferries metadata to a tool, the tool's verb must tolerate the hook + the prompt both firing (no double-writes). |
-| **Pure bash + git + jq** | No extra runtime dependencies beyond what's already on the operator's machine. |
-| **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/dev/hooks/...`. |
+## Dependencies and behavior
 
-## Layout
+- Bash, Git and jq. **The Dojo scrub guard requires Bash 4+**; macOS's system Bash
+  3.2 lacks its lowercase expansion. Use a current Bash explicitly in that hook.
+- Local Dojo scrub patterns at `~/.claude/dojo/scrub-markers.txt` for the lesson
+  guard. Missing patterns deny writes to the shared lesson directory; keep patterns
+  private and out of settings examples.
+- Dossier for task bookkeeping; set `DOSSIER_BIN` and `DOSSIER_CORPUS`.
+- Authenticated `gh` for PR lookups. Ship hooks apply to the named MCP tool events,
+  not every possible Ship invocation.
 
-```
-scripts/          Hook entrypoints (one per event handler) — populated by follow-up PRs
-lib/              Shared helpers (stubs pre-created for parallel wave-2 work)
-examples/         Copy-pasteable settings.json snippets — populated by follow-up PRs
-tests/            bats unit tests — populated alongside each hook
-```
+Bookkeeping and reminder hooks return success on recoverable errors. Dossier failures
+are logged to `HOOKS_ERROR_LOG` (default `~/.cache/hooks-errors.log`). Guards can return
+exit 2 to deny a matched operation. **The “never block” convention applies to
+bookkeeping, not guards.** Keep context output short and hooks fast.
+
+The shell guard checks command text and merge shape. It doesn't establish a grant,
+verify the Gate verdict, or prevent every alternative execution path. Authority and
+credential boundaries remain with their owning tools.
 
 ## Development
 
-```bash
-make test    # run hook unit tests (vendors bats-core on first run; no-ops if no tests yet)
+```sh
+make test     # Bats fixtures, including Claude/Codex event envelopes
+make smoke    # temporary corpus against a real Dossier binary
+make check    # both
 ```
 
-Requires `bash`, `git`, and `jq`. Tests run under bash (Git Bash or WSL on Windows).
+`make smoke` requires `DOSSIER_BIN` or a built sibling Dossier checkout. CI builds
+Dossier before running both checks. Tests must preserve tracked executable modes;
+[PR #44](https://github.com/itsHabib/hooks/pull/44) addresses the existing validation
+mode churn. See [CONTRIBUTING.md](CONTRIBUTING.md) and [CLAUDE.md](CLAUDE.md).
 
-## License
-
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
