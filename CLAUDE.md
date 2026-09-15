@@ -115,27 +115,6 @@ WSL on Windows).
 | **Forward slashes** | Scripts avoid Windows-specific bash idioms; use paths like `~/dev/hooks/...`. |
 | **HOOK_NAME at top of every hook** | `lib/dossier-cli.sh`'s failure log uses it as the hook-name column; without it, failures log as `unknown-hook`. |
 
-## Review-cycle discipline
-
-Per PR, at most **two fix-rounds** against the review panel: fix every
-verified finding at P1 or higher and anything touching authorization
-invariants, push once, re-trigger the panel once — then one more round
-at the same bar. After round two, STOP fixing. Residual P2s and nits go
-to the judge with a written why — a judgment can accept
-verified-addressed-but-unretracted threads and recorded deferrals (a
-FOLLOWUPS.md at the repo root). Reviewers generate second-order findings
-on every new diff indefinitely, so "zero open findings" is a
-non-terminating exit condition; the judge's residual acceptance is the
-terminating one.
-
-Two fix-rounds plus the initial panel run is three review cycles, which
-is why review caps default to `max_cycles: 3`; `max_requests` caps total
-panel re-triggers across the PR. These caps are the stop signal, not
-friction — never respond to a ceiling park by asking for a wider grant.
-A blown cap means the process looped; the fix is fewer rounds, not more
-budget. Behavioral claims that reviewers keep re-litigating belong in
-e2e tests asserted every CI run, not in review rounds.
-
 <!-- BEGIN eng-philo (managed by /eng-philo — re-run to refresh; hand-edits inside this block will be overwritten) -->
 ## Engineering principles
 
@@ -166,7 +145,7 @@ _No code manifest detected — universals only; re-run `/eng-philo` once the rep
 - PR body must close a dossier task with the backtick form: `` Closes task `<slug>` ``.
 - Request Copilot, `@codex review`, and `@claude review`. (`@claude review` on this repo needs `CLAUDE_CODE_OAUTH_TOKEN` set in repo secrets; on `itsHabib/hooks` specifically that secret is already in place — but worth confirming if reviews don't fire.)
 - `make check` must pass before merge — CI gates on both bats and smoke.
-- Address review comments in cycles (~3 cap before merging anyway). Opinionated is fine; don't take comments blindly.
+- Fix verified review findings and re-review when the new diff warrants it. Opinionated is fine; don't take comments blindly.
 
 <!-- local-offload:start -->
 ## Local-first offload
