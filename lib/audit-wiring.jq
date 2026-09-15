@@ -1,7 +1,7 @@
 # Text references are deliberately weaker than installed/enabled/live claims.
 def entries:
   if type != "object" then error("settings must be an object") else . end
-  | (.hooks // {})
+  | (if has("hooks") then .hooks else {} end)
   | if type != "object" then error("hooks must be an object") else . end
   | to_entries[]
   | .key as $event

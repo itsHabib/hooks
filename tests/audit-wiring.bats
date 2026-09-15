@@ -43,10 +43,12 @@ JSON
   printf '{' > "$SETTINGS"
   run bash "$AUDIT" --claude "$SETTINGS" --codex "$SETTINGS"
   [ "$status" -eq 1 ]
-  printf '{"hooks":{"Stop":{}}}' > "$SETTINGS"
-  run bash "$AUDIT" --claude "$SETTINGS" --codex "$SETTINGS"
-  [ "$status" -eq 1 ]
-  [[ "$output" == *'config-invalid'* ]]
+  for invalid in '{"hooks":{"Stop":{}}}' '{"hooks":false}' '{"hooks":null}'; do
+    printf '%s' "$invalid" > "$SETTINGS"
+    run bash "$AUDIT" --claude "$SETTINGS" --codex "$SETTINGS"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'config-invalid'* ]]
+  done
 }
 
 @test "disabled configuration is visible and secret settings are not dumped" {
