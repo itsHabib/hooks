@@ -83,3 +83,32 @@ hook_event_tool_output_json() {
       end
   ' <<<"$event"
 }
+
+# --- session-scoped accessors -------------------------------------------------
+#
+# Stop and SessionStart envelopes carry the session itself rather than one tool
+# call. Same normalization posture as the tool accessors above: read the few
+# fields this repository uses, and let the harness differences stay here.
+
+hook_event_session_id() {
+  local event="$1"
+  jq -r '.session_id? // .sessionId? // empty' <<<"$event"
+}
+
+hook_event_transcript_path() {
+  local event="$1"
+  jq -r '.transcript_path? // .transcriptPath? // empty' <<<"$event"
+}
+
+hook_event_cwd() {
+  local event="$1"
+  jq -r '.cwd? // .workingDirectory? // empty' <<<"$event"
+}
+
+# hook_event_stop_is_reentrant reports whether this Stop event was raised by a
+# continuation that a Stop hook itself caused. A hook that acts on a re-entrant
+# Stop can drive an unbounded loop, so every Stop hook must check this first.
+hook_event_stop_is_reentrant() {
+  local event="$1"
+  jq -r 'if (.stop_hook_active? // .stopHookActive? // false) then "yes" else "no" end' <<<"$event"
+}

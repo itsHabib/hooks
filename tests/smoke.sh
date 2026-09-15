@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/smoke.sh — live-corpus end-to-end smoke for hooks.
 #
-# Fires each of the four hooks against a real dossier binary against a
+# Fires each of the five hooks against a real dossier binary against a
 # tmp corpus. Catches mock-reality drift that the bats suite cannot —
 # bats uses hand-rolled stubs that mirror what the test author *thought*
 # dossier returned, which silently drifted from real wire shape between
@@ -13,7 +13,7 @@
 #   # or just: tests/smoke.sh   (probes ../dossier/target/release/dossier)
 #
 # Exit codes:
-#   0 = all four hooks ferried correctly
+#   0 = all five hooks ferried correctly
 #   non-zero = first assertion failure (message on stderr)
 
 set -euo pipefail
@@ -306,6 +306,26 @@ HOOK_NAME="posttool-gh-pr-merge" \
 }
 EOF
 
+echo "smoke: firing stop-discharge.sh"
+# The transcript names the ship task (still `todo` — a note append needs no
+# particular state). The pr task is about to be completed by gh-pr-merge, so a
+# discharge against it would also have to survive a terminal transition; the
+# ship task keeps this assertion about exactly one thing.
+STOP_TRANSCRIPT="$TMP_ROOT/stop-transcript.jsonl"
+jq -cn --arg id "$SHIP_TASK_ID" \
+  '{type:"assistant",message:{content:[{type:"tool_use",name:"mcp__dossier__task_update",input:{id:$id}}]}}' \
+  >"$STOP_TRANSCRIPT"
+HOOK_NAME="stop-discharge" \
+  bash "$ROOT_DIR/scripts/stop-discharge.sh" --no-timeout <<EOF
+{
+  "hook_event_name": "Stop",
+  "session_id": "smoke0000cafe",
+  "transcript_path": "$STOP_TRANSCRIPT",
+  "cwd": "$TMP_ROOT",
+  "stop_hook_active": false
+}
+EOF
+
 # -----------------------------------------------------------------------
 # Assert outcomes.
 # -----------------------------------------------------------------------
@@ -343,9 +363,20 @@ if [[ "$PR_STATUS" != "done" ]]; then
   fail "gh-pr-merge hook did not complete pr task (status=$PR_STATUS, expected done)"
 fi
 
+# (5) stop-discharge → a note with the hook's actor, read back through the
+# REAL read path (task_list notes), not the file on disk — mock-reality drift
+# on exactly this wire is what this smoke exists to catch.
+STOP_NOTE="$("$DOSSIER" --corpus "$CORPUS" task_list --project "$PROJECT_SLUG" --include-terminal \
+  | jq -r --arg id "$SHIP_TASK_ID" \
+      '.[] | select(.id == $id) | .notes[]? | select(.actor == "hook:stop-discharge") | .body')"
+case "$STOP_NOTE" in
+  *"[session smoke000]"*) ;;
+  *) fail "stop-discharge did not land a note readable via task_list (got: ${STOP_NOTE:-none})" ;;
+esac
+
 # Sanity: HOOKS_ERROR_LOG should be empty — every hook should have run clean.
 if [[ -s "$HOOKS_ERROR_LOG" ]]; then
   fail "unexpected hook failures logged"
 fi
 
-echo "smoke: all 4 hooks ferried successfully ✓"
+echo "smoke: all 5 hooks ferried successfully ✓"

@@ -68,3 +68,30 @@ before executing — so a wrong tracked mode never fails CI.
 Tracked in dossier as `hooks/make-targets-mutate-tracked-modes`, which carries
 the two candidate fixes. Not fixed in PR #41 because the fix belongs in the
 Makefile and the bats helper, not in the security guard that PR changes.
+
+## `lib/transcript.sh` reads Claude Code transcripts only
+
+**From:** PR #42 (`stop-discharge`). Raised by the Codex reviewer as a P1
+(task resolution) and a P2 (files written).
+
+**What.** `transcript_task_ids` and `transcript_files_written` match Claude's
+`.message.content[] | select(.type == "tool_use")` records. A Codex rollout
+(`~/.codex/sessions/**/rollout-*.jsonl`) records the same activity as
+`{type: "response_item", payload: {type: "custom_tool_call" | "function_call",
+name: ...}}`, so run against a Codex rollout these helpers return nothing.
+
+**Why it was not fixed there.** The Stop hook is not wired into Codex.
+`~/.codex/hooks.json` binds `Stop` to the fleet-governance adapter, the
+example snippet in `examples/stop-discharge.json.snippet` is the Claude
+`settings.json` form, and the sweep in PR #43 walks `~/.claude/projects` only.
+No Codex session reaches this code today, so nothing is silently dropped; the
+gap is a missing capability, not a broken one. The reviewer's cited evidence
+(`/opt/codex/sessions`) does not exist on this machine, so the envelope
+shapes above come from a local rollout and a Codex fixture needs to be built
+from one before the parser is extended — which is a PR of its own.
+
+**What would terminate it.** Wire `stop-discharge.sh` into Codex's `Stop`,
+teach the three `transcript_*` helpers the `response_item` envelope (task ids
+from `function_call` to the dossier MCP; files from `custom_tool_call` /
+`apply_patch`), add a rollout-shaped fixture beside the Claude one in
+`tests/stop-discharge.bats`, and point the sweep at both transcript roots.
