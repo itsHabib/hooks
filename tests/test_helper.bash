@@ -8,7 +8,18 @@ setup() {
 
   export DOSSIER_LOG="$TEST_TMP/dossier.log"
   : >"$DOSSIER_LOG"
-  export DOSSIER="$BATS_TEST_DIRNAME/fixtures/mock-dossier.sh"
+  export HOOKS_ROOT="$BATS_TEST_DIRNAME/.."
+
+  # Tests exercise scripts through the same explicit Bash boundary used by the
+  # harness, without changing tracked executable bits in the checkout.
+  bash_wrapper "$BATS_TEST_DIRNAME/fixtures/mock-dossier.sh" \
+    "$TEST_TMP/mock-dossier"
+  bash_wrapper "$HOOKS_ROOT/scripts/posttool-ship-ship-dispatch.sh" \
+    "$TEST_TMP/posttool-ship-ship-dispatch"
+  bash_wrapper "$HOOKS_ROOT/scripts/posttool-ship-getrun.sh" \
+    "$TEST_TMP/posttool-ship-getrun"
+
+  export DOSSIER="$TEST_TMP/mock-dossier"
   # Override DOSSIER_BIN explicitly so the lib/dossier-cli.sh wrapper
   # uses the mock even when the operator's environment has DOSSIER_BIN
   # set (e.g. via ~/.claude/settings.json env block). Without this, tests
@@ -21,15 +32,21 @@ setup() {
   unset DOSSIER_CORPUS
   export DOSSIER_MOCK_LOG="$DOSSIER_LOG"
 
-  export HOOKS_ROOT="$BATS_TEST_DIRNAME/.."
-  export DISPATCH_HOOK="$HOOKS_ROOT/scripts/posttool-ship-ship-dispatch.sh"
-  export GETRUN_HOOK="$HOOKS_ROOT/scripts/posttool-ship-getrun.sh"
+  export DISPATCH_HOOK="$TEST_TMP/posttool-ship-ship-dispatch"
+  export GETRUN_HOOK="$TEST_TMP/posttool-ship-getrun"
 
   # Scope dossier-wrapper failure logging to the test tmp dir so
   # `~/.cache/hooks-errors.log` doesn't get polluted by test runs.
   export HOOKS_ERROR_LOG="$TEST_TMP/hooks-errors.log"
 
-  chmod +x "$DOSSIER" "$DISPATCH_HOOK" "$GETRUN_HOOK"
+}
+
+bash_wrapper() {
+  local source="$1"
+  local wrapper="$2"
+
+  printf '#!/usr/bin/env bash\nexec bash %q "$@"\n' "$source" >"$wrapper"
+  chmod +x "$wrapper"
 }
 
 substitute_workdir() {

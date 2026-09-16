@@ -5,8 +5,6 @@ setup() {
   HOOKS_ROOT="$BATS_TEST_DIRNAME/.."
   export HOOKS_ERROR_LOG="$BATS_TEST_TMPDIR/hooks-errors.log"
   export HOOK_NAME="test-hook"
-  chmod +x "$BATS_TEST_DIRNAME/fixtures/bin-fail/dossier" \
-           "$BATS_TEST_DIRNAME/fixtures/bin-ok/dossier"
 }
 
 @test "dossier_artifact_link logs to HOOKS_ERROR_LOG on non-zero exit" {
